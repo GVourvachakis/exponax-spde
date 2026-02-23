@@ -109,10 +109,10 @@ grad_u0 = jax.grad(
 
 <p align="center">
   <img src="docs/imgs/stochastic_allen_cahn_1d_spacetime.png"
-       alt="1-D space-time" width="300">
+       alt="1-D space-time" width="500">
   &nbsp;
   <img src="docs/imgs/stochastic_allen_cahn_1d_evolution.gif"
-       alt="1-D evolution" width="300">
+       alt="1-D evolution" width="500">
 </p>
 
 *1-D stochastic Allen-Cahn: space-time diagram showing phase separation
@@ -198,7 +198,7 @@ provides end-to-end validation against theoretical predictions:
   &nbsp;
   <img src="docs/imgs/stochastic_allen_cahn_2d_animation.gif"
        alt="2-D Allen-Cahn coarsening animation"
-       width="300">
+       width="500">
 </p>
 
 *2-D phase-field evolution: domains coarsen toward the ±1 attractors
