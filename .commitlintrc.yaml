@@ -1,0 +1,60 @@
+# .commitlintrc.yaml
+# Documents the conventional commit types enforced by
+# conventional-pre-commit in .pre-commit-config.yaml.
+# This file is read by editors (VS Code commitizen extension, etc.)
+# and serves as the canonical reference for allowed types.
+#
+# Spec: https://www.conventionalcommits.org/en/v1.0.0/
+#
+# Format:
+#   <type>(<optional scope>): <short description>
+#
+#   [optional body]
+#
+#   [optional footer(s)]
+#
+# Examples:
+#   feat(stepper): add StochasticKuramotoSivashinsky
+#   fix(utils): correct structure_factor round=None omission
+#   docs(readme): add 2-D evolution figure
+#   test(stochastic): extend invariant-measure test to 3-D
+#   chore: bump exponax dependency to 0.2.1
+
+rules:
+  type-enum:
+    - 2 # error level: 0=off, 1=warn, 2=error
+    - always
+    - - feat # new feature
+      - fix # bug fix
+      - docs # documentation only (README, docstrings, notebooks)
+      - style # formatting, whitespace — no logic change
+      - refactor # code restructure without behaviour change
+      - perf # performance improvement
+      - test # adding or correcting tests
+      - chore # build, dependency, tooling updates
+      - ci # CI/CD configuration
+      - revert # reverts a previous commit
+
+  type-case:
+    - 2
+    - always
+    - lower-case
+
+  subject-empty:
+    - 2
+    - never
+
+  subject-full-stop:
+    - 2
+    - never
+    - "."
+
+  header-max-length:
+    - 2
+    - always
+    - 72
+
+  body-max-line-length:
+    - 1 # warn only — long lines in body are common in changelogs
+    - always
+    - 100

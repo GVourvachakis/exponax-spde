@@ -1,0 +1,39 @@
+repos:
+  # ── Ruff: linting and formatting ────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # ── Conventional Commits: enforce commit message format ─────────────────
+  # Spec: https://www.conventionalcommits.org/en/v1.0.0/
+  # Allowed types are defined in .commitlintrc.yaml
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args:
+          - feat # new feature
+          - fix # bug fix
+          - docs # documentation only
+          - style # formatting, no logic change
+          - refactor # code change that neither fixes a bug nor adds a feature
+          - perf # performance improvement
+          - test # adding or correcting tests
+          - chore # build process, dependency updates, tooling
+          - ci # CI/CD configuration changes
+          - revert # reverts a previous commit
+
+  # ── General hygiene ─────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: debug-statements # catches leftover pdb / breakpoint() calls

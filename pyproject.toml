@@ -1,0 +1,114 @@
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "exponax-spde"
+version = "0.1.0"
+description = "Stochastic PDE solvers built on top of Exponax."
+readme = "README.md"
+requires-python = "~=3.10"
+authors = [{ name = "Georgios Vourvachakis" }]
+license = { file = "LICENSE.txt" }
+keywords = [
+    "jax",
+    "equinox",
+    "fft",
+    "spectral-methods",
+    "sciml",
+    "pde",
+    "spde",
+    "etdrk",
+    "differentiable-physics",
+    "statistical-physics",
+    "chemical-engineering",
+    "stochastic-processes",
+    "richardson-extrapolation",
+    "mollifiers",
+    "milstein",
+    "exponential-Euler-Maruyama",
+]
+
+dependencies = [
+    "exponax>=0.2.0",
+    "jax>=0.4.13",
+    "jaxtyping>=0.2.20",
+    "typing_extensions>=4.5.0",
+    "equinox>=0.11.3",
+    "matplotlib>=3.8.1",
+]
+
+[project.urls]
+repository = "https://github.com/GVourvachakis/exponax-spde"
+documentation = "https://github.com/GVourvachakis/exponax-spde"
+changelog = "https://github.com/GVourvachakis/exponax-spde/releases"
+
+[tool.poetry]
+packages = [{ include = "exponax_spde" }]
+
+[project.optional-dependencies]
+dev = [
+    "ipykernel",
+    "pre-commit>=3.7.0",
+    "commitizen>=3.29.0", # CLI commit helper
+]
+vape4d = ["vape4d"]
+test = ["jaxlib", "pytest", "pytest-cov"]
+docs = [
+    "mkdocs==1.6.1",
+    "mkdocs-material==9.7.1",
+    "mkdocstrings==1.0.3",
+    "mkdocstrings-python==2.0.1",
+    "mknotebooks==0.8.0",
+    "griffe==1.15.0",
+    "black==26.1.0",              # Needed for API autoformat
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "F722",  # jaxtyping: forward-annotation syntax is intentional
+    "UP037", # jaxtyping: quoted annotations must NOT be unquoted
+    # ruff's UP037 strips the quotes from e.g. Float[Array, "1 * N"]
+    # which turns a valid jaxtyping shape expression into an
+    # F821 "undefined name N" error at collection time.
+]
+
+[tool.ruff.lint.per-file-ignores]
+# jaxtyping shape strings also trigger F821 (undefined name) after UP037
+# strips them. Belt-and-braces: suppress F821 only in the files that use
+# jaxtyping annotations so the rest of the codebase keeps full F coverage.
+"exponax_spde/stepper/stochastic/_stochastic_allen_cahn.py" = ["F821"]
+"exponax_spde/_stochastic_utils.py" = ["F821"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["exponax_spde"]
+
+[tool.coverage.run]
+source = ["exponax_spde"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__",
+    "raise NotImplementedError",
+    "@abstractmethod",
+]
+
+[tool.pytest.ini_options]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+
+[dependency-groups]
+dev = ["pre-commit (>=4.5.1,<5.0.0)", "commitizen (>=4.13.8,<5.0.0)"]
