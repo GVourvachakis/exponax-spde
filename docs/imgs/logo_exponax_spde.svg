@@ -190,7 +190,7 @@
      All sample paths are seeded here, mirroring the (u0, key) calling
      convention: stochastic_ensemble_rollout(stepper, T, M)(u0, key).
      The outer glow circle encodes the initial probability mass (Dirac δ). -->
-  <circle cx="350" cy="148" r="7" fill="#af6aa3" opacity="0.14"/>
+  <circle cx="350" cy="148" r="10" fill="#af6aa3" opacity="0.34"/>
   <circle cx="350" cy="148" r="3.5" fill="#af6aa3" opacity="0.82"/>
 
 </svg>
