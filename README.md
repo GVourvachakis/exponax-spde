@@ -165,7 +165,7 @@ u_batch = jax.vmap(lambda k: stepper(u0, key=k))(keys)
 |----------|-------------|
 | `stochastic_rollout(stepper, T, *, include_init)` | Single trajectory via `jax.lax.scan`; JIT-compatible |
 | `stochastic_ensemble_rollout(stepper, T, M, *, include_init)` | $M$ independent trajectories via `jax.vmap` |
-| `structure_factor(ensemble, *, burn_in_fraction)` | Ensemble power spectrum $S(k) = \langle|\hat{u}_k|^2\rangle$ |
+| `structure_factor(ensemble, *, burn_in_fraction)` | Ensemble power spectrum $S(k) = \langle \vert \hat{u}_k \vert^2 \rangle$ |
 | `richardson_weak_extrapolation(stepper_coarse, stepper_fine, u0, num_steps_coarse, key, *, num_samples)` | Richardson extrapolation: $O(\Delta t) \to O(\Delta t^2)$ weak bias |
 | `strang_split_step(spectral_stepper, ssa_step_fn, u, ssa_state, dt, key, *, ...)` | Second-order Strang splitting for hybrid PDE/SSA coupling |
 
