@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -70,7 +71,9 @@ def test_specific_stepper_to_general_linear_stepper(
     specific_pred = specific_stepper(u_0)
     general_pred = general_stepper(u_0)
 
-    assert specific_pred == pytest.approx(general_pred, rel=1e-4)
+    assert np.asarray(specific_pred) == pytest.approx(
+        np.asarray(general_pred), rel=1e-4
+    )
 
 
 # The two stale @pytest.mark.parametrize decorators referencing
@@ -115,7 +118,9 @@ def test_linear_normalized_stepper(coefficients):
     regular_linear_pred = regular_linear_stepper(u_0)
     normalized_linear_pred = normalized_linear_stepper(u_0)
 
-    assert regular_linear_pred == pytest.approx(normalized_linear_pred, rel=1e-4)
+    assert np.asarray(regular_linear_pred) == pytest.approx(
+        np.asarray(normalized_linear_pred), rel=1e-4
+    )
 
 
 def test_nonlinear_normalized_stepper():
@@ -155,8 +160,8 @@ def test_nonlinear_normalized_stepper():
     regular_burgers_pred = regular_burgers_stepper(u_0)
     normalized_burgers_pred = normalized_burgers_stepper(u_0)
 
-    assert regular_burgers_pred == pytest.approx(
-        normalized_burgers_pred, rel=1e-5, abs=1e-5
+    assert np.asarray(regular_burgers_pred) == pytest.approx(
+        np.asarray(normalized_burgers_pred), rel=1e-5, abs=1e-5
     )
 
 
@@ -279,7 +284,9 @@ class TestETDRKOrderConvergence:
 
         # Orders 2-4 should closely agree (order 1 may differ slightly more)
         for order in [3, 4]:
-            assert results[order] == pytest.approx(results[2], abs=5e-4)
+            assert np.asarray(results[order]) == pytest.approx(
+                np.asarray(results[2]), abs=5e-4
+            )
 
 
 # ===========================================================================
@@ -319,7 +326,7 @@ class TestDiffusionAnalytical:
         u_1 = stepper(u_0)
         decay_factor = jnp.exp(-nu * (k * 2 * jnp.pi / L) ** 2 * dt)
         expected = decay_factor * u_0
-        assert u_1 == pytest.approx(expected, abs=1e-5)
+        assert np.asarray(u_1) == pytest.approx(np.asarray(expected), abs=1e-5)
 
     def test_higher_modes_decay_faster(self):
         """Higher wavenumbers should decay faster under diffusion."""

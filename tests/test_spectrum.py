@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -22,7 +23,9 @@ def test_amplitude_spectrum_1d():
 
     u = 3.0 * jnp.sin(3 * grid) + 4.0 * jnp.cos(3 * grid)
     spectrum = ex.get_spectrum(u, power=False)
-    assert spectrum[0, 3] == pytest.approx(jnp.sqrt(3.0**2 + 4.0**2))
+    assert np.asarray(spectrum[0, 3]) == pytest.approx(
+        np.asarray(jnp.sqrt(3.0**2 + 4.0**2))
+    )
 
     u = 3.0 * jnp.ones_like(grid)
     spectrum = ex.get_spectrum(u, power=False)
@@ -43,7 +46,9 @@ def test_amplitude_spectrum_2d():
 
     u = 3.0 * jnp.sin(3 * grid[0:1]) + 4.0 * jnp.cos(3 * grid[0:1])
     spectrum = ex.get_spectrum(u, power=False)
-    assert spectrum[0, 3] == pytest.approx(jnp.sqrt(3.0**2 + 4.0**2))
+    assert np.asarray(spectrum[0, 3]) == pytest.approx(
+        np.asarray(jnp.sqrt(3.0**2 + 4.0**2))
+    )
 
     u = 3.0 * jnp.ones_like(grid[0:1])
     spectrum = ex.get_spectrum(u, power=False)

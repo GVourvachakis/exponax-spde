@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -12,7 +13,9 @@ def test_roots_of_unity():
 
     assert roots.shape == (M,)
     # All roots should lie on the unit circle
-    assert jnp.abs(roots) == pytest.approx(jnp.ones(M), abs=1e-6)
+    assert np.asarray(jnp.abs(roots)) == pytest.approx(
+        np.asarray(jnp.ones(M)), abs=1e-6
+    )
     # Roots should sum to approximately zero (equally spaced on circle)
     assert jnp.sum(roots) == pytest.approx(0.0, abs=1e-6)
 
@@ -42,7 +45,7 @@ def test_etdrk0_exact_for_linear():
     u_1_pred = stepper(u_0)
 
     # Should be exact to machine precision (linear PDE, spectral in space)
-    assert u_1_pred == pytest.approx(u_1_exact, abs=1e-5)
+    assert np.asarray(u_1_pred) == pytest.approx(np.asarray(u_1_exact), abs=1e-5)
 
 
 @pytest.mark.parametrize("order", [1, 2, 3, 4])

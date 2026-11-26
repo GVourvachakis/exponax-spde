@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 from jaxtyping import Array, Float
 
@@ -38,7 +39,7 @@ def test_fourier_interpolator_1d(
     interpolated_u = interpolator(query_location)
     correct_val = fn(query_location)
 
-    assert interpolated_u == pytest.approx(correct_val)
+    assert np.asarray(interpolated_u) == pytest.approx(np.asarray(correct_val))
 
 
 FN_DICT_2D = {
@@ -90,7 +91,9 @@ def test_fourier_interpolator_2d(
     correct_val = fn(query_location)
 
     # Looser rel and abs tol because JAX runs in single precision by default
-    assert interpolated_u == pytest.approx(correct_val, rel=1e-5, abs=1e-5)
+    assert np.asarray(interpolated_u) == pytest.approx(
+        np.asarray(correct_val), rel=1e-5, abs=1e-5
+    )
 
 
 FN_DICT_3D = {
@@ -163,7 +166,9 @@ def test_fourier_interpolator_3d(
     correct_val = fn(query_location)
 
     # Looser rel and abs tol because JAX runs in single precision by default
-    assert interpolated_u == pytest.approx(correct_val, rel=1e-5, abs=1e-5)
+    assert np.asarray(interpolated_u) == pytest.approx(
+        np.asarray(correct_val), rel=1e-5, abs=1e-5
+    )
 
 
 @pytest.mark.parametrize(
@@ -197,7 +202,9 @@ def test_map_between_resolutions_1d(
 
     # Looser rel tol because JAX runs in single precision by default, and the
     # FFT incorse some rounding errors
-    assert u_new == pytest.approx(u_new_correct, rel=10.0, abs=1e-6)
+    assert np.asarray(u_new) == pytest.approx(
+        np.asarray(u_new_correct), rel=10.0, abs=1e-6
+    )
 
 
 @pytest.mark.parametrize(
@@ -243,7 +250,9 @@ def test_map_between_resolutions_2d(
 
     # Looser rel tol because JAX runs in single precision by default, and the
     # FFT incorse some rounding errors
-    assert u_new == pytest.approx(u_new_correct, rel=10.0, abs=1e-6)
+    assert np.asarray(u_new) == pytest.approx(
+        np.asarray(u_new_correct), rel=10.0, abs=1e-6
+    )
 
 
 @pytest.mark.parametrize(
@@ -301,7 +310,9 @@ def test_map_between_resolutions_3d(
 
     # Looser rel tol because JAX runs in single precision by default, and the
     # FFT incorse some rounding errors
-    assert u_new == pytest.approx(u_new_correct, rel=10.0, abs=3e-4)
+    assert np.asarray(u_new) == pytest.approx(
+        np.asarray(u_new_correct), rel=10.0, abs=3e-4
+    )
 
 
 # ===========================================================================
@@ -315,7 +326,7 @@ def test_map_between_resolutions_same_resolution():
     grid = ex.make_grid(1, 1.0, N)
     u = jnp.sin(2 * jnp.pi * grid)
     u_mapped = ex.map_between_resolutions(u, N)
-    assert u_mapped == pytest.approx(u, abs=1e-6)
+    assert np.asarray(u_mapped) == pytest.approx(np.asarray(u), abs=1e-6)
 
 
 def test_map_between_resolutions_same_resolution_2d():
@@ -324,7 +335,7 @@ def test_map_between_resolutions_same_resolution_2d():
     grid = ex.make_grid(2, 1.0, N)
     u = jnp.sin(2 * jnp.pi * grid[0:1]) * jnp.cos(2 * jnp.pi * grid[1:2])
     u_mapped = ex.map_between_resolutions(u, N)
-    assert u_mapped == pytest.approx(u, abs=1e-6)
+    assert np.asarray(u_mapped) == pytest.approx(np.asarray(u), abs=1e-6)
 
 
 @pytest.mark.parametrize("num_spatial_dims", [1, 2, 3])
@@ -345,9 +356,13 @@ def test_roundtrip_on_bandlimited_signal(num_spatial_dims):
     signal_low = ex.map_between_resolutions(bandlimited_signal, num_points_low)
     signal_from_low = ex.map_between_resolutions(signal_low, num_points)
 
-    assert signal_from_low == pytest.approx(bandlimited_signal, abs=3e-5)
+    assert np.asarray(signal_from_low) == pytest.approx(
+        np.asarray(bandlimited_signal), abs=3e-5
+    )
 
     signal_high = ex.map_between_resolutions(bandlimited_signal, num_points_high)
     signal_from_high = ex.map_between_resolutions(signal_high, num_points)
 
-    assert signal_from_high == pytest.approx(bandlimited_signal, abs=3e-5)
+    assert np.asarray(signal_from_high) == pytest.approx(
+        np.asarray(bandlimited_signal), abs=3e-5
+    )

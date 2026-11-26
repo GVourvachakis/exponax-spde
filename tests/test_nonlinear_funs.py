@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -49,7 +50,7 @@ def test_convection_single_channel():
         2 * 2 * jnp.pi * grid / domain_extent
     )
 
-    assert result == pytest.approx(expected, abs=1e-4)
+    assert np.asarray(result) == pytest.approx(np.asarray(expected), abs=1e-4)
 
 
 def test_convection_conservative_vs_nonconservative():
@@ -90,7 +91,9 @@ def test_convection_conservative_vs_nonconservative():
         conv_noncons(u_hat), num_spatial_dims=1, num_points=num_points
     )
 
-    assert result_cons == pytest.approx(result_noncons, abs=1e-5)
+    assert np.asarray(result_cons) == pytest.approx(
+        np.asarray(result_noncons), abs=1e-5
+    )
 
 
 def test_gradient_norm_zero_mode_fix():
@@ -149,7 +152,7 @@ def test_polynomial_nonlinear_fun():
     expected_value = c0 + c1 * u_val + c2 * u_val**2
     expected = jnp.ones((1, num_points)) * expected_value
 
-    assert result == pytest.approx(expected, abs=1e-5)
+    assert np.asarray(result) == pytest.approx(np.asarray(expected), abs=1e-5)
 
 
 def test_dealiasing_removes_high_modes():
@@ -178,8 +181,8 @@ def test_dealiasing_removes_high_modes():
     dealiased = poly_fun.dealias(u_hat)
 
     # All modes above cutoff should be zero after dealiasing
-    assert dealiased[0, cutoff + 1 :] == pytest.approx(
-        jnp.zeros(num_points // 2 + 1 - cutoff - 1), abs=1e-10
+    assert np.asarray(dealiased[0, cutoff + 1 :]) == pytest.approx(
+        np.asarray(jnp.zeros(num_points // 2 + 1 - cutoff - 1)), abs=1e-10
     )
 
 
@@ -208,15 +211,15 @@ def test_fft_ifft_apply_dealiasing():
     u = poly_fun.ifft(u_hat)
     # Round-trip back with the raw fft (not the method) to inspect
     u_hat_after_ifft = fft(jnp.broadcast_to(u, (1, num_points)), num_spatial_dims=1)
-    assert u_hat_after_ifft[0, cutoff + 1 :] == pytest.approx(
-        jnp.zeros(num_points // 2 + 1 - cutoff - 1), abs=1e-6
+    assert np.asarray(u_hat_after_ifft[0, cutoff + 1 :]) == pytest.approx(
+        np.asarray(jnp.zeros(num_points // 2 + 1 - cutoff - 1)), abs=1e-6
     )
 
     # fft should zero high modes after transforming (post-dealiasing)
     u_physical = jnp.ones((1, num_points))
     u_hat_result = poly_fun.fft(u_physical)
-    assert u_hat_result[0, cutoff + 1 :] == pytest.approx(
-        jnp.zeros(num_points // 2 + 1 - cutoff - 1), abs=1e-6
+    assert np.asarray(u_hat_result[0, cutoff + 1 :]) == pytest.approx(
+        np.asarray(jnp.zeros(num_points // 2 + 1 - cutoff - 1)), abs=1e-6
     )
 
 
@@ -441,7 +444,9 @@ class TestLeray:
         # Check divergence: sum_i (ik_i * u_hat_i) should be ~0
         div_hat = jnp.sum(deriv_op * projected_hat, axis=0, keepdims=True)
 
-        assert div_hat == pytest.approx(jnp.zeros_like(div_hat), abs=1e-5)
+        assert np.asarray(div_hat) == pytest.approx(
+            np.asarray(jnp.zeros_like(div_hat)), abs=1e-5
+        )
 
     def test_identity_on_divergence_free(self):
         """Leray projection of a divergence-free field should be identity."""
@@ -485,7 +490,7 @@ class TestLeray:
         projected_hat = leray(u_hat)
 
         projected = ifft(projected_hat, num_spatial_dims=D, num_points=N)
-        assert projected == pytest.approx(u, abs=1e-4)
+        assert np.asarray(projected) == pytest.approx(np.asarray(u), abs=1e-4)
 
     def test_idempotent(self):
         """Applying Leray projection twice should give the same result."""
@@ -514,7 +519,7 @@ class TestLeray:
 
         once = ifft(once_hat, num_spatial_dims=D, num_points=N)
         twice = ifft(twice_hat, num_spatial_dims=D, num_points=N)
-        assert twice == pytest.approx(once, abs=1e-5)
+        assert np.asarray(twice) == pytest.approx(np.asarray(once), abs=1e-5)
 
 
 # ===========================================================================

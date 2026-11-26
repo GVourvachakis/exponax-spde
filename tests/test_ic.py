@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -101,7 +102,7 @@ def test_ic_determinism():
     ic_b = ic_gen(num_points, key=jax.random.PRNGKey(42))
     ic_c = ic_gen(num_points, key=jax.random.PRNGKey(99))
 
-    assert ic_a == pytest.approx(ic_b, abs=1e-7)
+    assert np.asarray(ic_a) == pytest.approx(np.asarray(ic_b), abs=1e-7)
     assert not jnp.allclose(ic_a, ic_c)
 
 
@@ -143,7 +144,7 @@ def test_scaled_ic():
     ic_base = base_gen(num_points, key=key)
     ic_scaled = scaled_gen(num_points, key=key)
 
-    assert ic_scaled == pytest.approx(ic_base * scale, abs=1e-6)
+    assert np.asarray(ic_scaled) == pytest.approx(np.asarray(ic_base * scale), abs=1e-6)
 
 
 # ===========================================================================
@@ -164,7 +165,7 @@ class TestWhiteNoise:
         gen = ex.ic.WhiteNoise(1)
         ic_a = gen(32, key=jax.random.PRNGKey(42))
         ic_b = gen(32, key=jax.random.PRNGKey(42))
-        assert ic_a == pytest.approx(ic_b, abs=1e-7)
+        assert np.asarray(ic_a) == pytest.approx(np.asarray(ic_b), abs=1e-7)
 
     def test_different_keys_differ(self):
         gen = ex.ic.WhiteNoise(1)
@@ -212,7 +213,7 @@ class TestDiffusedNoise:
         gen = ex.ic.DiffusedNoise(1)
         ic_a = gen(32, key=jax.random.PRNGKey(42))
         ic_b = gen(32, key=jax.random.PRNGKey(42))
-        assert ic_a == pytest.approx(ic_b, abs=1e-7)
+        assert np.asarray(ic_a) == pytest.approx(np.asarray(ic_b), abs=1e-7)
 
     def test_different_keys_differ(self):
         gen = ex.ic.DiffusedNoise(1)
@@ -256,7 +257,7 @@ class TestSineWaves1d:
         grid = ex.make_grid(1, 2 * jnp.pi, 64)
         ic = sw(grid)
         expected = jnp.sin(grid)
-        assert ic == pytest.approx(expected, abs=1e-5)
+        assert np.asarray(ic) == pytest.approx(np.asarray(expected), abs=1e-5)
 
     def test_multi_wave(self):
         sw = ex.ic.SineWaves1d(
@@ -268,7 +269,7 @@ class TestSineWaves1d:
         grid = ex.make_grid(1, 2 * jnp.pi, 64)
         ic = sw(grid)
         expected = jnp.sin(grid) + 0.5 * jnp.sin(2 * grid)
-        assert ic == pytest.approx(expected, abs=1e-5)
+        assert np.asarray(ic) == pytest.approx(np.asarray(expected), abs=1e-5)
 
     def test_with_offset(self):
         sw = ex.ic.SineWaves1d(
@@ -281,7 +282,7 @@ class TestSineWaves1d:
         grid = ex.make_grid(1, 2 * jnp.pi, 64)
         ic = sw(grid)
         expected = jnp.sin(grid) + 3.0
-        assert ic == pytest.approx(expected, abs=1e-5)
+        assert np.asarray(ic) == pytest.approx(np.asarray(expected), abs=1e-5)
 
     def test_std_one(self):
         sw = ex.ic.SineWaves1d(
@@ -364,7 +365,7 @@ class TestRandomSineWaves1d:
         gen = ex.ic.RandomSineWaves1d(1)
         ic_a = gen(64, key=jax.random.PRNGKey(42))
         ic_b = gen(64, key=jax.random.PRNGKey(42))
-        assert ic_a == pytest.approx(ic_b, abs=1e-7)
+        assert np.asarray(ic_a) == pytest.approx(np.asarray(ic_b), abs=1e-7)
 
     def test_max_one(self):
         gen = ex.ic.RandomSineWaves1d(1, max_one=True)

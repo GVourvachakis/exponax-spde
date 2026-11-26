@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -19,7 +20,7 @@ def test_wrap_bc(num_spatial_dims):
     full_u = jnp.sin(2 * jnp.pi * full_grid[0:1] / domain_extent)
     wrapped_u = ex.wrap_bc(u)
 
-    assert wrapped_u == pytest.approx(full_u, abs=1e-5)
+    assert np.asarray(wrapped_u) == pytest.approx(np.asarray(full_u), abs=1e-5)
 
 
 def test_rollout_length_with_init():
@@ -63,7 +64,9 @@ def test_rollout_matches_manual_loop():
         manual_states.append(u)
 
     for i in range(n + 1):
-        assert trj[i] == pytest.approx(manual_states[i], abs=1e-6)
+        assert np.asarray(trj[i]) == pytest.approx(
+            np.asarray(manual_states[i]), abs=1e-6
+        )
 
 
 def test_repeat_matches_rollout_final():
@@ -78,7 +81,9 @@ def test_repeat_matches_rollout_final():
 
     u_final_repeat = ex.repeat(stepper, n)(u_0)
 
-    assert u_final_repeat == pytest.approx(u_final_rollout, abs=1e-6)
+    assert np.asarray(u_final_repeat) == pytest.approx(
+        np.asarray(u_final_rollout), abs=1e-6
+    )
 
 
 # ===========================================================================
@@ -105,7 +110,7 @@ class TestMakeGrid:
         N = 32
         grid = ex.make_grid(1, L, N)
         grid_zc = ex.make_grid(1, L, N, zero_centered=True)
-        assert grid_zc == pytest.approx(grid - L / 2, abs=1e-6)
+        assert np.asarray(grid_zc) == pytest.approx(np.asarray(grid - L / 2), abs=1e-6)
 
     def test_full_grid_1d(self):
         """Full grid should have N+1 points."""
@@ -145,7 +150,7 @@ class TestRolloutWithAux:
         trj = rollout_fn(u_0, aux)
         assert trj.shape == (n, 1, 32)
         # After 5 steps: u_0 + 5*aux = 1.0 + 0.5 = 1.5
-        assert trj[-1] == pytest.approx(u_0 + n * aux, abs=1e-6)
+        assert np.asarray(trj[-1]) == pytest.approx(np.asarray(u_0 + n * aux), abs=1e-6)
 
     def test_variable_aux(self):
         """rollout with takes_aux=True and constant_aux=False."""
@@ -168,7 +173,9 @@ class TestRolloutWithAux:
         trj = rollout_fn(u_0, aux)
         assert trj.shape == (n, 1, 32)
         # After 3 steps: 0 + 0.1 + 0.2 + 0.3 = 0.6
-        assert trj[-1] == pytest.approx(0.6 * jnp.ones((1, 32)), abs=1e-5)
+        assert np.asarray(trj[-1]) == pytest.approx(
+            np.asarray(0.6 * jnp.ones((1, 32))), abs=1e-5
+        )
 
     def test_rollout_with_aux_include_init(self):
         """rollout with takes_aux and include_init should return n+1 states."""
@@ -185,7 +192,7 @@ class TestRolloutWithAux:
 
         trj = rollout_fn(u_0, aux)
         assert trj.shape == (n + 1, 1, 16)
-        assert trj[0] == pytest.approx(u_0, abs=1e-6)
+        assert np.asarray(trj[0]) == pytest.approx(np.asarray(u_0), abs=1e-6)
 
 
 # ===========================================================================
@@ -207,7 +214,7 @@ class TestRepeatWithAux:
 
         u_final = repeat_fn(u_0, aux)
         assert u_final.shape == (1, 32)
-        assert u_final == pytest.approx(u_0 + n * aux, abs=1e-6)
+        assert np.asarray(u_final) == pytest.approx(np.asarray(u_0 + n * aux), abs=1e-6)
 
     def test_variable_aux(self):
         """repeat with takes_aux=True and constant_aux=False."""
@@ -228,7 +235,9 @@ class TestRepeatWithAux:
 
         u_final = repeat_fn(u_0, aux)
         assert u_final.shape == (1, 32)
-        assert u_final == pytest.approx(0.6 * jnp.ones((1, 32)), abs=1e-5)
+        assert np.asarray(u_final) == pytest.approx(
+            np.asarray(0.6 * jnp.ones((1, 32))), abs=1e-5
+        )
 
     def test_repeat_with_aux_matches_rollout(self):
         """repeat with aux should match the final state from rollout."""
@@ -243,7 +252,7 @@ class TestRepeatWithAux:
         trj = ex.rollout(stepper_fn, n, takes_aux=True, constant_aux=True)(u_0, aux)
         u_final = ex.repeat(stepper_fn, n, takes_aux=True, constant_aux=True)(u_0, aux)
 
-        assert u_final == pytest.approx(trj[-1], abs=1e-6)
+        assert np.asarray(u_final) == pytest.approx(np.asarray(trj[-1]), abs=1e-6)
 
 
 # ===========================================================================
@@ -258,9 +267,13 @@ class TestStackSubTrajectories:
         # n_stacks = 10 - 3 + 1 = 8
         assert sub_trjs.shape == (8, 3, 1)
         # First sub-trajectory should be [0, 1, 2]
-        assert sub_trjs[0, :, 0] == pytest.approx(jnp.array([0, 1, 2]))
+        assert np.asarray(sub_trjs[0, :, 0]) == pytest.approx(
+            np.asarray(jnp.array([0, 1, 2]))
+        )
         # Last sub-trajectory should be [7, 8, 9]
-        assert sub_trjs[-1, :, 0] == pytest.approx(jnp.array([7, 8, 9]))
+        assert np.asarray(sub_trjs[-1, :, 0]) == pytest.approx(
+            np.asarray(jnp.array([7, 8, 9]))
+        )
 
     def test_sub_len_equals_length(self):
         trj = jnp.arange(5).reshape(5, 1)
