@@ -462,11 +462,12 @@ class StochasticAllenCahn(BaseStepper):
         u_hat = fft(u, num_spatial_dims=self.num_spatial_dims)
 
         # 2. ETD coefficients from the ETDRK integrator stored by BaseStepper.
+        # Replaced in the fix for #4.
         exp_term = self._integrator._exp_term  # exp(L_k Δt)
         phi_1_dt = self._integrator._coef_1  # φ₁(L_k Δt) · Δt
 
-        # 3. Nonlinear term 𝒩̂(u) = FFT(-λu³) via the dealiased nonlinear fun.
-        N_hat = self._integrator._nonlinear_fun(u_hat)
+        # 3. Deterministic exponential step.
+        drift = super().step_fourier(u_hat)
 
         # 4. Sample independent complex Gaussians for all rfft modes.
         key, k1, k2 = jax.random.split(key, 3)
@@ -538,7 +539,7 @@ class StochasticAllenCahn(BaseStepper):
                 noise_increment = noise_increment + phi_1_dt * nl.fft(mil_phys)
 
         # 7. EEM update (mild-solution form for the linear part).
-        u_hat_new = exp_term * u_hat + phi_1_dt * N_hat + noise_increment
+        u_hat_new = drift + noise_increment
 
         # 8. Inverse transform; discard machine-precision imaginary residual.
         return ifft(
@@ -575,7 +576,7 @@ class StochasticAllenCahn(BaseStepper):
         """
         exp_term = self._integrator._exp_term
         phi_1_dt = self._integrator._coef_1
-        N_hat = self._integrator._nonlinear_fun(u_hat)
+        drift = super().step_fourier(u_hat)
 
         key, k1, k2 = jax.random.split(key, 3)
         z_r = jax.random.normal(k1, u_hat.shape)
@@ -615,4 +616,4 @@ class StochasticAllenCahn(BaseStepper):
                 )
                 noise_increment = noise_increment + phi_1_dt * nl.fft(mil_phys)
 
-        return exp_term * u_hat + phi_1_dt * N_hat + noise_increment
+        return drift + noise_increment
