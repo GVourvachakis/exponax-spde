@@ -161,3 +161,4 @@ cython_debug/
 
 # Folder created by visual validation
 validation/qualitative_rollouts/
+scratch/
