@@ -18,6 +18,9 @@ structure_factor(ensemble, *, burn_in_fraction)
     trajectories (average over the last ``(1 - burn_in_fraction)``
     fraction of time steps).
 
+stochastic_structure_factor(stepper, num_steps, num_samples, *, burn_in_fraction)
+    Accumulate the same structure factor directly during a stochastic rollout.
+
 richardson_weak_extrapolation(stepper_coarse, stepper_fine, u0, *, ...)
     Combine runs at Δt and Δt/2 to boost the *weak* order by one via
     Romberg extrapolation:  E_rich ≈ 2·E_fine - E_coarse.
@@ -213,6 +216,69 @@ def structure_factor(
 
     S_k = jnp.mean(jnp.abs(coeffs_per_snapshot) ** 2, axis=0)  # (1, *K)
     return S_k
+
+
+def stochastic_structure_factor(
+    stepper: eqx.Module,
+    num_steps: int,
+    num_samples: int,
+    *,
+    burn_in_fraction: float = 0.5,
+) -> Callable[[Float[Array, "1 * N"], PRNGKeyArray], Float[Array, "1 * K"]]:
+    """Return a rollout function that accumulates the empirical structure factor.
+
+    With the same initial state and key, its spectrum agrees up to rounding
+    with that of ``structure_factor`` applied to ``stochastic_ensemble_rollout``
+    with ``include_init=False`` and the same burn-in fraction. The returned
+    function ``fn(u_init, key)`` has shape ``(1, *K)`` in real-FFT coefficient
+    extraction units.
+
+    The scan carries the current fields and spectral sums, so peak memory
+    is O(num_samples × N^d), independent of the number of steps. The step and
+    sample counts must be positive, and ``0 <= burn_in_fraction < 1``.
+    """
+    if num_steps < 1 or num_samples < 1:
+        raise ValueError("num_steps and num_samples must be positive.")
+    if not 0.0 <= burn_in_fraction < 1.0:
+        raise ValueError("burn_in_fraction must be in [0, 1).")
+
+    burn_in = int(num_steps * burn_in_fraction)
+
+    def modal_power(u):
+        coefficients = spectral.get_fourier_coefficients(
+            u, scaling_compensation_mode="coef_extraction", round=None
+        )
+        return jnp.abs(coefficients) ** 2
+
+    def spectrum(u_init, key):
+        zero_power = jnp.zeros_like(modal_power(u_init))
+        fields = jnp.broadcast_to(u_init, (num_samples,) + u_init.shape)
+        keys = jax.random.split(key, num_samples)
+        advance = jax.vmap(lambda u, k: stepper(u, key=k))
+        powers = jax.vmap(modal_power)
+
+        def step(carry, _):
+            fields, keys, index, total, correction = carry
+            split = jax.vmap(jax.random.split)(keys)
+            fields = advance(fields, split[:, 1])
+
+            def accumulate():
+                # Compensate round-off over long averaging windows.
+                adjusted = jnp.sum(powers(fields), axis=0) - correction
+                updated = total + adjusted
+                return updated, (updated - total) - adjusted
+
+            total, correction = jax.lax.cond(
+                index >= burn_in, accumulate, lambda: (total, correction)
+            )
+            return (fields, split[:, 0], index + 1, total, correction), None
+
+        (_, _, _, total, _), _ = jax.lax.scan(
+            step, (fields, keys, 0, zero_power, zero_power), None, length=num_steps
+        )
+        return total / (num_samples * (num_steps - burn_in))
+
+    return spectrum
 
 
 # ---------------------------------------------------------------------------
