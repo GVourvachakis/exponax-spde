@@ -2,6 +2,8 @@
 
 This guide walks through the exact steps needed to add a new stochastic PDE
 stepper to `exponax_spde`, following the same pattern as `StochasticAllenCahn`.
+StochasticAllenCahn supports only `order=1` (exponential Euler–Maruyama).
+Use the same order for the template's deterministic update and its reference.
 
 > **Note**: All future commits to this repository must follow the
 > [Conventional Commits v1.0.0 spec](https://www.conventionalcommits.org/en/v1.0.0/) or the commit-msg hook will reject
@@ -53,7 +55,6 @@ class StochasticKuramotoSivashinsky(BaseStepper):
         sigma=0.1,
         noise_alpha=1.0,
         noise_type="additive",
-        order=1,
     ):
         self.diffusivity = diffusivity
         self.sigma = sigma
@@ -71,7 +72,7 @@ class StochasticKuramotoSivashinsky(BaseStepper):
         self._noise_std_base = filter_k * sqrt_dt_over_dxd
 
         super().__init__(
-            num_spatial_dims, domain_extent, num_points, dt, num_channels=1, order=order
+            num_spatial_dims, domain_extent, num_points, dt, num_channels=1, order=1
         )
 
     def _build_linear_operator(self, derivative_operator):
@@ -93,8 +94,8 @@ class StochasticKuramotoSivashinsky(BaseStepper):
         raise NotImplementedError("Use stepper(u, key=key)")
 
     def __call__(self, u, *, key):
-        # Copy the _stochastic_step pattern from StochasticAllenCahn verbatim,
-        # substituting self._noise_std / self._noise_std_base.
+        # Transform to Fourier space, call the shared stochastic update,
+        # then transform back. Use BaseStepper.step_fourier for the drift.
         ...
 ```
 
@@ -152,7 +153,7 @@ from .stepper import StochasticAllenCahn, StochasticKuramotoSivashinsky
 class TestDeterministicLimitKS:
     def test_single_step_sigma_zero_1d(self):
         p = dict(num_spatial_dims=1, domain_extent=100.0, num_points=128, dt=0.1)
-        det = ex.stepper.KuramotoSivashinskyConservative(**p)
+        det = ex.stepper.KuramotoSivashinskyConservative(**p, order=1)
         sto = StochasticKuramotoSivashinsky(**p, sigma=0.0)
         u0 = ex.ic.RandomTruncatedFourierSeries(1, cutoff=5)(128, key=KEY0)
         assert jnp.allclose(det(u0), sto(u0, key=KEY0), atol=1e-5)
