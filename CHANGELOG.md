@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `stochastic_structure_factor` computes the ensemble spectrum during rollout without
+  storing the trajectories. [#11](https://github.com/GVourvachakis/exponax-spde/issues/11)
+
+### Changed
+
+- Richardson weak extrapolation retains only its final states.
+  [#11](https://github.com/GVourvachakis/exponax-spde/issues/11)
+- The spectrum utilities use the public `exponax.spectral.get_fourier_coefficients`.
+
 ### Changed (breaking)
 
 - `StochasticAllenCahn` now raises `ValueError` for any `order` other than 1.
