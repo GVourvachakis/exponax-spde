@@ -23,12 +23,18 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
 
 ## Commands
 
-- Install locally with `poetry install --all-extras`. CI installs `.[test]` with pip.
+- Build the in-project `.venv` with
+  `POETRY_VIRTUALENVS_IN_PROJECT=true poetry install --all-extras`.
+  Use `.venv/bin/python` in VS Code and select the Jupyter kernel
+  "Python (exponax-spde)". CI installs `.[test]` with pip.
 - Install hooks with `poetry run pre-commit install --hook-type pre-commit --hook-type commit-msg`.
 - Lint and format with `poetry run pre-commit run --all-files`.
 - Run fast tests with `JAX_ENABLE_X64=1 poetry run pytest -m "not slow" -q`.
-- Run all tests with `JAX_ENABLE_X64=1 poetry run pytest -q`. Slow tests are marked
-  `@pytest.mark.slow`.
+- Run one pytest or JAX-heavy job at a time. Finish environment builds before running tests.
+- Run the full suite in a memory-capped systemd user scope with swap disabled.
+  Set `cap` to about 60% of the machine's total RAM, then run
+  `systemd-run --user --scope -p "MemoryMax=$cap" -p MemorySwapMax=0 -- env JAX_ENABLE_X64=1 poetry run pytest -q`.
+  Slow tests are marked `@pytest.mark.slow`.
 
 ## Git and GitHub
 
@@ -41,6 +47,8 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
 
 ## Code conventions
 
+- Convert both JAX array operands with `np.asarray` for `pytest.approx` assertions.
+  Leave Python scalar operands as scalars.
 - Keep traced JAX code free of Python side effects and global RNG state. Thread
   `jax.random` keys explicitly.
 - Steppers are `equinox.Module`s. Declare configuration that drives Python branching
