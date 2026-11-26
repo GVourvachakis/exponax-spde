@@ -34,7 +34,9 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
 - Run the full suite in a memory-capped systemd user scope with swap disabled.
   Set `cap` to about 60% of the machine's total RAM, then run
   `systemd-run --user --scope -p "MemoryMax=$cap" -p MemorySwapMax=0 -- env JAX_ENABLE_X64=1 poetry run pytest -q`.
-  Slow tests are marked `@pytest.mark.slow`.
+  Slow tests are marked `@pytest.mark.slow`. Until #11 is fixed, append
+  `-k "not test_structure_factor_grid_convergence_2d"` to capped full-suite
+  and slow-only runs.
 
 ## Git and GitHub
 

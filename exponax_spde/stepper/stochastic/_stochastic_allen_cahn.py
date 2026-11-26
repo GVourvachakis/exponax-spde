@@ -46,7 +46,7 @@ BaseStepper.__init__(num_spatial_dims, domain_extent, num_points, dt,
   - self._integrator : BaseETDRK instance.
 
 BaseETDRK: self._exp_term = exp(dt * L_k)
-ETDRK1+:  self._coef_1 = φ₁(L_k Δt) · Δt
+ETDRK1:   self._coef_1 = φ₁(L_k Δt) · Δt
           self._nonlinear_fun : TamedPolynomialNonlinearFun instance
 
 BaseNonlinearFun.__call__(u_hat) → nonlin_hat  (single Complex array)
@@ -175,11 +175,9 @@ class StochasticAllenCahn(BaseStepper):
         Auto-disabled when ``noise_alpha=0`` because the iterated
         stochastic integrals required for space-time white noise diverge.
         Defaults to ``False``.
-    - `order`: The order of the ETDRK method.  Must be ``≥ 1`` so that
-        ``_nonlinear_fun`` and ``_coef_1`` exist on the integrator.
-        Higher values give more accurate deterministic substeps but do
-        not change the stochastic convergence order of the EEM noise.
-        Defaults to ``1`` (Exponential Euler).
+    - `order`: Must be ``1`` (exponential Euler–Maruyama, the default).
+        Other values raise ``ValueError``. Higher-order stochastic
+        exponential integrators are tracked in issue #14.
     - `dealiasing_fraction`: The fraction of the highest wavenumbers to
         dealias in the nonlinear evaluation.  Default ``2/3`` (Orszag's
         rule); ``1/2`` is tighter for the cubic nonlinearity.
@@ -301,6 +299,15 @@ class StochasticAllenCahn(BaseStepper):
         order: int = 1,
         dealiasing_fraction: float = 2.0 / 3.0,
     ) -> None:
+        if order != 1:
+            raise ValueError(
+                "StochasticAllenCahn supports only order=1 (exponential "
+                "Euler–Maruyama). In v0.1.0, order=2 silently ran order 1 and "
+                "order>=3 integrated the nonlinearity with the ETDRK3/4 "
+                "half-step coefficient (#5). Higher-order integrators are "
+                "tracked in #14."
+            )
+
         # Guard: Milstein for space-time white noise requires iterated
         # stochastic integrals that diverge (Lord et al., 2014, §10.5).
         if noise_alpha == 0.0 and use_milstein:
@@ -343,10 +350,6 @@ class StochasticAllenCahn(BaseStepper):
         # Signature: (num_spatial_dims, domain_extent, num_points, dt,
         #             *, num_channels, order)
         # No dealiasing_fraction argument at the BaseStepper level.
-        if order < 1:
-            raise ValueError(
-                f"order must be ≥ 1 (ETDRK0 has no _nonlinear_fun). Got {order}."
-            )
         super().__init__(
             num_spatial_dims=num_spatial_dims,
             domain_extent=domain_extent,
@@ -446,34 +449,38 @@ class StochasticAllenCahn(BaseStepper):
                 f"Expected shape {expected}, got {u.shape}. "
                 "Use jax.vmap for batched operation."
             )
-        return self._stochastic_step(u, key=key)
+        u_hat = fft(u, num_spatial_dims=self.num_spatial_dims)
+        u_hat_next = self._stochastic_step(u_hat, key=key)
+        return ifft(
+            u_hat_next,
+            num_spatial_dims=self.num_spatial_dims,
+            num_points=self.num_points,
+        ).real
 
     # ── Core EEM step ──────────────────────────────────────────────────
 
     def _stochastic_step(
         self,
-        u: Float[Array, "1 * N"],
+        u_hat: Complex[Array, "1 ... (N//2)+1"],
         *,
         key: PRNGKeyArray,
-    ) -> Float[Array, "1 * N"]:
+    ) -> Complex[Array, "1 ... (N//2)+1"]:
         """EEM update with exact modewise stochastic-integral variance."""
 
-        # 1. Transform to Fourier space.
-        u_hat = fft(u, num_spatial_dims=self.num_spatial_dims)
-
-        # 2. ETD coefficients from the ETDRK integrator stored by BaseStepper.
+        # 1. ETD coefficients from the ETDRK integrator stored by BaseStepper.
+        # Replaced in the fix for #4.
         exp_term = self._integrator._exp_term  # exp(L_k Δt)
         phi_1_dt = self._integrator._coef_1  # φ₁(L_k Δt) · Δt
 
-        # 3. Nonlinear term 𝒩̂(u) = FFT(-λu³) via the dealiased nonlinear fun.
-        N_hat = self._integrator._nonlinear_fun(u_hat)
+        # 2. Deterministic exponential step.
+        drift = super().step_fourier(u_hat)
 
-        # 4. Sample independent complex Gaussians for all rfft modes.
+        # 3. Sample independent complex Gaussians for all rfft modes.
         key, k1, k2 = jax.random.split(key, 3)
         z_r = jax.random.normal(k1, u_hat.shape)
         z_i = jax.random.normal(k2, u_hat.shape)
 
-        # 5. Exact stochastic-integral variance factor (Lord et al., 2014, §10.5):
+        # 4. Exact stochastic-integral variance factor (Lord et al., 2014, §10.5):
         #
         #        Var_k / Q_k = factor
         #                    = (e^{2L_k Δt} - 1) / (2 L_k)   [L_k ≠ 0]
@@ -495,7 +502,7 @@ class StochasticAllenCahn(BaseStepper):
             self.num_spatial_dims, self.num_points, mode="reconstruction"
         )
 
-        # 6. Build the noise increment.
+        # 5. Build the noise increment.
         if self.noise_type == "additive":
             # _noise_std already contains σ.
             # Coefficient-space variance per step: σ² · Q_base · factor.
@@ -537,15 +544,7 @@ class StochasticAllenCahn(BaseStepper):
                 # backward compatibility with the existing passing tests.
                 noise_increment = noise_increment + phi_1_dt * nl.fft(mil_phys)
 
-        # 7. EEM update (mild-solution form for the linear part).
-        u_hat_new = exp_term * u_hat + phi_1_dt * N_hat + noise_increment
-
-        # 8. Inverse transform; discard machine-precision imaginary residual.
-        return ifft(
-            u_hat_new,
-            num_spatial_dims=self.num_spatial_dims,
-            num_points=self.num_points,
-        ).real
+        return drift + noise_increment
 
     # ── Fourier-space variant ──────────────────────────────────────────
 
@@ -573,46 +572,4 @@ class StochasticAllenCahn(BaseStepper):
         - `u_next_hat`: Fourier transform of the updated field, same
             shape as ``u_hat``.
         """
-        exp_term = self._integrator._exp_term
-        phi_1_dt = self._integrator._coef_1
-        N_hat = self._integrator._nonlinear_fun(u_hat)
-
-        key, k1, k2 = jax.random.split(key, 3)
-        z_r = jax.random.normal(k1, u_hat.shape)
-        z_i = jax.random.normal(k2, u_hat.shape)
-
-        L_dt = jnp.log(exp_term)
-        L_k = L_dt / self.dt
-        factor = jnp.where(
-            jnp.abs(L_k) > 1e-30,
-            (1.0 - jnp.exp(2.0 * L_dt)) / (-2.0 * L_k),
-            self.dt,
-        )
-        scaling = build_scaling_array(
-            self.num_spatial_dims, self.num_points, mode="reconstruction"
-        )
-
-        if self.noise_type == "additive":
-            noise_var = (self._noise_std**2) * factor
-            dW_hat = scaling * jnp.sqrt(noise_var) * (z_r + 1j * z_i) / jnp.sqrt(2.0)
-            noise_increment = dW_hat
-
-        else:  # multiplicative
-            noise_var_base = (self._noise_std_base**2) * factor
-            dW_hat_base = (
-                scaling * jnp.sqrt(noise_var_base) * (z_r + 1j * z_i) / jnp.sqrt(2.0)
-            )
-            nl = self._integrator._nonlinear_fun
-            u_phys = nl.ifft(nl.dealias(u_hat))
-            dW_phys_base = nl.ifft(dW_hat_base).real
-            noise_increment = nl.fft(self.sigma * u_phys * dW_phys_base)
-
-            if self.use_milstein:
-                var_dW_hat_base = (scaling**2) * noise_var_base
-                E_dW_phys_base_sq = nl.ifft(var_dW_hat_base).real
-                mil_phys = (
-                    0.5 * self.sigma**2 * u_phys * (dW_phys_base**2 - E_dW_phys_base_sq)
-                )
-                noise_increment = noise_increment + phi_1_dt * nl.fft(mil_phys)
-
-        return exp_term * u_hat + phi_1_dt * N_hat + noise_increment
+        return self._stochastic_step(u_hat, key=key)

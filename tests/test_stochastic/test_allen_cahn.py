@@ -37,11 +37,12 @@ Running
 from __future__ import annotations
 
 import equinox as eqx
+import exponax as ex
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
-import exponax_spde as ex
 from exponax_spde._spectral import fft, get_fourier_coefficients, ifft
 from exponax_spde._stochastic_utils import (
     stochastic_ensemble_rollout,
@@ -86,7 +87,7 @@ def _random_ic(params: dict, key=KEY0) -> jnp.ndarray:
 def _get_deterministic_allen_cahn(p: dict):
     """Construct the built-in deterministic Allen-Cahn stepper.
 
-    Confirmed API (exponax_spde/stepper/reaction/_allen_cahn.py):
+    Upstream API (exponax.stepper.reaction.AllenCahn):
         AllenCahn(num_spatial_dims, domain_extent, num_points, dt,
                   *, diffusivity, first_order_coefficient,
                     third_order_coefficient, order, dealiasing_fraction)
@@ -156,6 +157,19 @@ def _build_theoretical_Ck_2d(N, L, diffusivity, sigma, alpha, dt):
     return C_k, k_sq_2d, nonzero_mask, j_x, j_y
 
 
+@pytest.mark.parametrize("order", [-1, 0, 2, 3, 4])
+def test_unsupported_order(order):
+    with pytest.raises(ValueError, match="order=1"):
+        _make_stochastic(PARAMS_1D, order=order)
+
+
+def test_default_order_matches_explicit_order_one():
+    u0 = _random_ic(PARAMS_1D)
+    default = _make_stochastic(PARAMS_1D)
+    explicit = _make_stochastic(PARAMS_1D, order=1)
+    np.testing.assert_array_equal(default(u0, key=KEY0), explicit(u0, key=KEY0))
+
+
 # ============================================================================
 # Test 1 — Deterministic limit (σ → 0)
 # ============================================================================
@@ -200,6 +214,25 @@ class TestDeterministicLimit:
         sto = _make_stochastic(p, sigma=0.0, use_taming=False)
         u_sto = sto(u0, key=KEY0)
         assert jnp.allclose(u_det, u_sto, atol=1e-5)
+
+    @pytest.mark.parametrize("p", [PARAMS_1D, PARAMS_2D], ids=["1d", "2d"])
+    @pytest.mark.parametrize("space", ["physical", "fourier"])
+    def test_exact_upstream_order_one(self, p, space):
+        det = _get_deterministic_allen_cahn(p)
+        sto = _make_stochastic(
+            p, sigma=0.0, use_taming=False, order=1, dealiasing_fraction=2.0 / 3.0
+        )
+        initial = _random_ic(p)
+        if space == "fourier":
+            initial = fft(initial, num_spatial_dims=p["num_spatial_dims"])
+            det = det.step_fourier
+            sto = sto.step_fourier
+
+        np.testing.assert_array_equal(sto(initial, key=KEY0), det(initial))
+        np.testing.assert_array_equal(
+            stochastic_rollout(sto, 50, include_init=False)(initial, KEY0),
+            ex.rollout(det, 50, include_init=False)(initial),
+        )
 
     def test_sigma_zero_no_noise(self):
         """σ=0: two calls with different keys must give identical results."""
@@ -818,11 +851,11 @@ class TestJAXCompatibility:
         """step_fourier works and gives the same result as __call__."""
         ste = _make_stochastic(PARAMS_1D, sigma=0.1, noise_alpha=1.5)
         u0 = _random_ic(PARAMS_1D)
-        key_a, key_b = jax.random.split(KEY0)
         u_hat = fft(u0, num_spatial_dims=1)
-        u_hat_next = ste.step_fourier(u_hat, key=key_a)
+        u_hat_next = ste.step_fourier(u_hat, key=KEY0)
         u_next_from_fourier = ifft(
             u_hat_next, num_spatial_dims=1, num_points=PARAMS_1D["num_points"]
         ).real
         assert u_next_from_fourier.shape == u0.shape
         assert jnp.all(jnp.isfinite(u_next_from_fourier))
+        np.testing.assert_array_equal(u_next_from_fourier, ste(u0, key=KEY0))
