@@ -18,6 +18,28 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install pre-commit
       - run: pre-commit run --all-files --show-diff-on-failure
+      - name: Check committed notebook outputs
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          listed = subprocess.check_output(["git", "ls-files", "-z", "--", "*.ipynb"])
+          paths = [os.fsdecode(path) for path in listed.split(b"\0") if path]
+          dirty = []
+          for path in paths:
+              blob = subprocess.check_output(["git", "show", f":{path}"])
+              for number, cell in enumerate(json.loads(blob)["cells"], 1):
+                  if cell["cell_type"] == "code" and (
+                      cell.get("outputs") or cell.get("execution_count") is not None
+                  ):
+                      dirty.append(f"{path}: cell {number}")
+          if dirty:
+              print("\n".join(dirty))
+              raise SystemExit(1)
+          print(f"{len(paths)} tracked notebooks have no outputs or execution counts.")
+          PY
   test:
     runs-on: ubuntu-latest
     strategy:
