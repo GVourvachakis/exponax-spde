@@ -46,7 +46,7 @@ BaseStepper.__init__(num_spatial_dims, domain_extent, num_points, dt,
   - self._integrator : BaseETDRK instance.
 
 BaseETDRK: self._exp_term = exp(dt * L_k)
-ETDRK1+:  self._coef_1 = φ₁(L_k Δt) · Δt
+ETDRK1:   self._coef_1 = φ₁(L_k Δt) · Δt
           self._nonlinear_fun : TamedPolynomialNonlinearFun instance
 
 BaseNonlinearFun.__call__(u_hat) → nonlin_hat  (single Complex array)
@@ -175,11 +175,9 @@ class StochasticAllenCahn(BaseStepper):
         Auto-disabled when ``noise_alpha=0`` because the iterated
         stochastic integrals required for space-time white noise diverge.
         Defaults to ``False``.
-    - `order`: The order of the ETDRK method.  Must be ``≥ 1`` so that
-        ``_nonlinear_fun`` and ``_coef_1`` exist on the integrator.
-        Higher values give more accurate deterministic substeps but do
-        not change the stochastic convergence order of the EEM noise.
-        Defaults to ``1`` (Exponential Euler).
+    - `order`: Must be ``1`` (exponential Euler–Maruyama, the default).
+        Other values raise ``ValueError``. Higher-order stochastic
+        exponential integrators are tracked in issue #14.
     - `dealiasing_fraction`: The fraction of the highest wavenumbers to
         dealias in the nonlinear evaluation.  Default ``2/3`` (Orszag's
         rule); ``1/2`` is tighter for the cubic nonlinearity.
@@ -301,6 +299,15 @@ class StochasticAllenCahn(BaseStepper):
         order: int = 1,
         dealiasing_fraction: float = 2.0 / 3.0,
     ) -> None:
+        if order != 1:
+            raise ValueError(
+                "StochasticAllenCahn supports only order=1 (exponential "
+                "Euler–Maruyama). In v0.1.0, order=2 silently ran order 1 and "
+                "order>=3 integrated the nonlinearity with the ETDRK3/4 "
+                "half-step coefficient (#5). Higher-order integrators are "
+                "tracked in #14."
+            )
+
         # Guard: Milstein for space-time white noise requires iterated
         # stochastic integrals that diverge (Lord et al., 2014, §10.5).
         if noise_alpha == 0.0 and use_milstein:
@@ -343,10 +350,6 @@ class StochasticAllenCahn(BaseStepper):
         # Signature: (num_spatial_dims, domain_extent, num_points, dt,
         #             *, num_channels, order)
         # No dealiasing_fraction argument at the BaseStepper level.
-        if order < 1:
-            raise ValueError(
-                f"order must be ≥ 1 (ETDRK0 has no _nonlinear_fun). Got {order}."
-            )
         super().__init__(
             num_spatial_dims=num_spatial_dims,
             domain_extent=domain_extent,
