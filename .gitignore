@@ -161,3 +161,7 @@ cython_debug/
 
 # Folder created by visual validation
 validation/qualitative_rollouts/
+scratch/
+
+# Local editor interpreter selection
+.vscode/settings.json

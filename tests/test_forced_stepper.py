@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -23,7 +24,7 @@ def test_forced_stepper_zero_forcing():
     u_unforced = stepper(u_0)
     u_forced = forced_stepper(u_0, f)
 
-    assert u_forced == pytest.approx(u_unforced, abs=1e-6)
+    assert np.asarray(u_forced) == pytest.approx(np.asarray(u_unforced), abs=1e-6)
 
 
 def test_forced_stepper_constant_forcing():
@@ -50,7 +51,7 @@ def test_forced_stepper_constant_forcing():
     # The forced stepper should be equivalent to: stepper(u + dt*f)
     u_expected = stepper(u_0 + dt * f)
 
-    assert u_forced == pytest.approx(u_expected, abs=1e-6)
+    assert np.asarray(u_forced) == pytest.approx(np.asarray(u_expected), abs=1e-6)
 
 
 def test_forced_stepper_energy_injection():

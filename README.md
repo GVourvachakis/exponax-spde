@@ -73,25 +73,23 @@ stepper = spde.StochasticAllenCahn(
     diffusivity=0.01,
     lambda_=1.0,
     sigma=0.1,
-    noise_alpha=1.5,        # colour index: α=0 white noise, α>d/2 smooth
+    noise_alpha=1.5,  # colour index: α=0 white noise, α>d/2 smooth
     noise_type="additive",
     use_taming=True,
 )
 
 # Initial condition
-u0 = ex.ic.GaussianRandomField(1, powerlaw_exponent=3.0)(
-    128, key=jax.random.PRNGKey(0)
-)
+u0 = ex.ic.GaussianRandomField(1, powerlaw_exponent=3.0)(128, key=jax.random.PRNGKey(0))
 
 # Single trajectory
-trajectory = jax.jit(
-    spde.stochastic_rollout(stepper, T=500, include_init=True)
-)(u0, jax.random.PRNGKey(1))   # shape (501, 1, 128)
+trajectory = jax.jit(spde.stochastic_rollout(stepper, T=500, include_init=True))(
+    u0, jax.random.PRNGKey(1)
+)  # shape (501, 1, 128)
 
 # Ensemble of M=64 independent trajectories
 ensemble = jax.jit(
     spde.stochastic_ensemble_rollout(stepper, T=500, M=64, include_init=False)
-)(u0, jax.random.PRNGKey(2))   # shape (64, 500, 1, 128)
+)(u0, jax.random.PRNGKey(2))  # shape (64, 500, 1, 128)
 
 # Ensemble-averaged power spectrum S(k)
 S_k = spde.structure_factor(ensemble, burn_in_fraction=0.5)
@@ -102,9 +100,7 @@ it with `jax.grad`, `jax.vmap`, and `jax.jit`:
 
 ```python
 # Gradient of final state w.r.t. initial condition
-grad_u0 = jax.grad(
-    lambda u: jax.jit(stepper)(u, key=jax.random.PRNGKey(0)).sum()
-)(u0)
+grad_u0 = jax.grad(lambda u: jax.jit(stepper)(u, key=jax.random.PRNGKey(0)).sum())(u0)
 ```
 
 <p align="center">
@@ -306,10 +302,10 @@ and this repository:
   year={2024}
 }
 
-@software{vakis2025exponaxspde,
-  author = {Vakis, Georgios},
+@software{vourvachakis2026exponaxspde,
+  author = {Vourvachakis, Georgios},
   title  = {exponax-spde: Stochastic PDE solvers built on top of exponax},
-  year   = {2025},
+  year   = {2026},
   url    = {https://github.com/GVourvachakis/exponax-spde},
 }
 ```

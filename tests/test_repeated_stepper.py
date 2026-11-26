@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -26,7 +27,7 @@ def test_repeated_stepper():
 
     # Need a looser rel tolerance because Burgers is a decaying phenomenon,
     # hence the expected/reference state has low magnitude after 10 steps.
-    assert u_final == pytest.approx(u_final_manually, rel=1e-3)
+    assert np.asarray(u_final) == pytest.approx(np.asarray(u_final_manually), rel=1e-3)
 
 
 def test_repeated_stepper_dt():

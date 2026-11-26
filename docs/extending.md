@@ -31,7 +31,8 @@ import jax.numpy as jnp
 from jaxtyping import Array, Complex, Float, PRNGKeyArray
 from exponax._base_stepper import BaseStepper
 from exponax._spectral import build_derivative_operator, build_scaling_array, fft, ifft
-from exponax.nonlin_fun import ConvectionNonlinearFun   # or write a custom one
+from exponax.nonlin_fun import ConvectionNonlinearFun  # or write a custom one
+
 
 class StochasticKuramotoSivashinsky(BaseStepper):
     diffusivity: float
@@ -41,15 +42,27 @@ class StochasticKuramotoSivashinsky(BaseStepper):
     _noise_std: Array
     _noise_std_base: Array
 
-    def __init__(self, num_spatial_dims, domain_extent, num_points, dt, *,
-                 diffusivity=1.0, sigma=0.1, noise_alpha=1.0,
-                 noise_type="additive", order=1):
+    def __init__(
+        self,
+        num_spatial_dims,
+        domain_extent,
+        num_points,
+        dt,
+        *,
+        diffusivity=1.0,
+        sigma=0.1,
+        noise_alpha=1.0,
+        noise_type="additive",
+        order=1,
+    ):
         self.diffusivity = diffusivity
         self.sigma = sigma
         self.noise_alpha = noise_alpha
         self.noise_type = noise_type
 
-        deriv_op = build_derivative_operator(num_spatial_dims, domain_extent, num_points)
+        deriv_op = build_derivative_operator(
+            num_spatial_dims, domain_extent, num_points
+        )
         k_sq = -jnp.sum(deriv_op**2, axis=0, keepdims=True).real
         dx_d = (domain_extent / num_points) ** num_spatial_dims
         filter_k = (1.0 + k_sq) ** (-noise_alpha / 2.0)
@@ -57,8 +70,9 @@ class StochasticKuramotoSivashinsky(BaseStepper):
         self._noise_std = sigma * filter_k * sqrt_dt_over_dxd
         self._noise_std_base = filter_k * sqrt_dt_over_dxd
 
-        super().__init__(num_spatial_dims, domain_extent, num_points, dt,
-                         num_channels=1, order=order)
+        super().__init__(
+            num_spatial_dims, domain_extent, num_points, dt, num_channels=1, order=order
+        )
 
     def _build_linear_operator(self, derivative_operator):
         laplacian = jnp.sum(derivative_operator**2, axis=0, keepdims=True)
@@ -68,9 +82,10 @@ class StochasticKuramotoSivashinsky(BaseStepper):
     def _build_nonlinear_fun(self, derivative_operator):
         # Gradient-norm nonlinearity: N(u) = -½|∇u|²
         return GradientNormNonlinearFun(
-            self.num_spatial_dims, self.num_points,
+            self.num_spatial_dims,
+            self.num_points,
             derivative_operator=derivative_operator,
-            dealiasing_fraction=2/3,
+            dealiasing_fraction=2 / 3,
             zero_mode_fix=True,
         )
 
@@ -92,13 +107,17 @@ exponax built-in:
 ```python
 from exponax_spde.nonlin_fun import TamedPolynomialNonlinearFun
 
+
 def _build_nonlinear_fun(self, derivative_operator):
     # Example: cubic term only
     coefficients = [0.0, 0.0, 0.0, -float(self.lambda_)]
     return TamedPolynomialNonlinearFun(
-        self.num_spatial_dims, self.num_points,
-        dt=self.dt, coefficients=coefficients,
-        dealiasing_fraction=2/3, use_taming=self.use_taming,
+        self.num_spatial_dims,
+        self.num_points,
+        dt=self.dt,
+        coefficients=coefficients,
+        dealiasing_fraction=2 / 3,
+        use_taming=self.use_taming,
     )
 ```
 
@@ -108,7 +127,7 @@ def _build_nonlinear_fun(self, derivative_operator):
 
 ```python
 from ._stochastic_allen_cahn import StochasticAllenCahn
-from ._stochastic_ks import StochasticKuramotoSivashinsky   # add this line
+from ._stochastic_ks import StochasticKuramotoSivashinsky  # add this line
 
 __all__ = ["StochasticAllenCahn", "StochasticKuramotoSivashinsky"]
 ```
@@ -117,6 +136,7 @@ __all__ = ["StochasticAllenCahn", "StochasticKuramotoSivashinsky"]
 
 ```python
 from .stochastic import StochasticAllenCahn, StochasticKuramotoSivashinsky
+
 __all__ = ["StochasticAllenCahn", "StochasticKuramotoSivashinsky"]
 ```
 

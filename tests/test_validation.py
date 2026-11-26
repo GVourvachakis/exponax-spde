@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -36,7 +37,7 @@ def test_heatequation_1d():
 
     u_1_pred = stepper(u_0)
 
-    assert u_1_pred == pytest.approx(u_1, abs=1e-5)
+    assert np.asarray(u_1_pred) == pytest.approx(np.asarray(u_1), abs=1e-5)
 
 
 def test_heatequation_2d():
@@ -76,7 +77,7 @@ def test_heatequation_2d():
 
     u_1_pred = stepper(u_0)
 
-    assert u_1_pred == pytest.approx(u_1, abs=1e-5)
+    assert np.asarray(u_1_pred) == pytest.approx(np.asarray(u_1), abs=1e-5)
 
 
 def test_heatequation_3d():
@@ -119,4 +120,4 @@ def test_heatequation_3d():
 
     u_1_pred = stepper(u_0)
 
-    assert u_1_pred == pytest.approx(u_1, abs=1e-5)
+    assert np.asarray(u_1_pred) == pytest.approx(np.asarray(u_1), abs=1e-5)

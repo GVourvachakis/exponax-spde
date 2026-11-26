@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -28,7 +29,7 @@ def test_fft_ifft_roundtrip(num_spatial_dims):
         u_hat, num_spatial_dims=num_spatial_dims, num_points=num_points
     )
 
-    assert u_reconstructed == pytest.approx(u, abs=1e-5)
+    assert np.asarray(u_reconstructed) == pytest.approx(np.asarray(u), abs=1e-5)
 
 
 @pytest.mark.parametrize(
@@ -65,7 +66,9 @@ def test_derivative_of_sine(num_spatial_dims, derivative_axis):
     # For 1D (single channel input), derivative returns shape (D, ..., N) For
     # multi-D, it also returns (D, ..., N). We compare the derivative_axis
     # component.
-    assert u_der[derivative_axis] == pytest.approx(expected[0], abs=1e-4)
+    assert np.asarray(u_der[derivative_axis]) == pytest.approx(
+        np.asarray(expected[0]), abs=1e-4
+    )
 
 
 def test_derivative_second_order():
@@ -81,7 +84,7 @@ def test_derivative_second_order():
 
     expected = -(k**2) * jnp.sin(k * grid)
 
-    assert u_der2 == pytest.approx(expected, abs=1e-3)
+    assert np.asarray(u_der2) == pytest.approx(np.asarray(expected), abs=1e-3)
 
 
 def test_laplace_operator_eigenvalues():
@@ -96,7 +99,9 @@ def test_laplace_operator_eigenvalues():
 
     expected_eigenvalues = -(scaled_wavenumbers[0:1] ** 2)
 
-    assert laplace_op == pytest.approx(expected_eigenvalues, abs=1e-10)
+    assert np.asarray(laplace_op) == pytest.approx(
+        np.asarray(expected_eigenvalues), abs=1e-10
+    )
 
 
 def test_make_incompressible_preserves_solenoidal():
@@ -113,7 +118,7 @@ def test_make_incompressible_preserves_solenoidal():
 
     velocity_proj = make_incompressible(velocity)
 
-    assert velocity_proj == pytest.approx(velocity, abs=1e-5)
+    assert np.asarray(velocity_proj) == pytest.approx(np.asarray(velocity), abs=1e-5)
 
 
 @pytest.mark.parametrize("num_spatial_dims", [1, 2, 3])
@@ -153,7 +158,7 @@ class TestLaplaceOperator:
         laplace_4 = build_laplace_operator(deriv_op, order=4)
         scaled_wn = build_scaled_wavenumbers(1, L, N)
         expected = scaled_wn[0:1] ** 4
-        assert laplace_4 == pytest.approx(expected, abs=1e-6)
+        assert np.asarray(laplace_4) == pytest.approx(np.asarray(expected), abs=1e-6)
 
     @pytest.mark.parametrize("order", [2, 4, 6])
     def test_even_orders_work(self, order):
@@ -181,7 +186,7 @@ class TestHigherOrderDerivatives:
         u = jnp.sin(k * grid)
         u_der3 = ex.derivative(u, L, order=3)
         expected = -(k**3) * jnp.cos(k * grid)
-        assert u_der3 == pytest.approx(expected, abs=1e-3)
+        assert np.asarray(u_der3) == pytest.approx(np.asarray(expected), abs=1e-3)
 
     def test_fourth_derivative(self):
         """d⁴/dx⁴ sin(kx) = k⁴ sin(kx)."""
@@ -193,7 +198,7 @@ class TestHigherOrderDerivatives:
         u = jnp.sin(k * grid)
         u_der4 = ex.derivative(u, L, order=4)
         expected = (k**4) * jnp.sin(k * grid)
-        assert u_der4 == pytest.approx(expected, abs=0.01)
+        assert np.asarray(u_der4) == pytest.approx(np.asarray(expected), abs=0.01)
 
 
 # ===========================================================================
@@ -219,7 +224,9 @@ class TestMakeIncompressible:
         grad_vx = ex.derivative(velocity_proj[0:1], L, order=1)  # (2, N, N)
         grad_vy = ex.derivative(velocity_proj[1:2], L, order=1)  # (2, N, N)
         divergence = grad_vx[0:1] + grad_vy[1:2]  # ∂vx/∂x + ∂vy/∂y
-        assert divergence == pytest.approx(jnp.zeros_like(divergence), abs=1e-5)
+        assert np.asarray(divergence) == pytest.approx(
+            np.asarray(jnp.zeros_like(divergence)), abs=1e-5
+        )
 
     def test_3d(self):
         """make_incompressible should work for 3D velocity fields."""
@@ -241,7 +248,9 @@ class TestMakeIncompressible:
         grad_vy = ex.derivative(velocity_proj[1:2], L, order=1)
         grad_vz = ex.derivative(velocity_proj[2:3], L, order=1)
         divergence = grad_vx[0:1] + grad_vy[1:2] + grad_vz[2:3]
-        assert divergence == pytest.approx(jnp.zeros_like(divergence), abs=1e-4)
+        assert np.asarray(divergence) == pytest.approx(
+            np.asarray(jnp.zeros_like(divergence)), abs=1e-4
+        )
 
     def test_idempotent(self):
         """Applying projection twice should give same result as once."""
@@ -254,7 +263,7 @@ class TestMakeIncompressible:
 
         v_proj1 = make_incompressible(velocity)
         v_proj2 = make_incompressible(v_proj1)
-        assert v_proj2 == pytest.approx(v_proj1, abs=1e-5)
+        assert np.asarray(v_proj2) == pytest.approx(np.asarray(v_proj1), abs=1e-5)
 
 
 # ===========================================================================
@@ -275,7 +284,7 @@ class TestFFTMultiChannel:
         )
         u_hat = fft(u, num_spatial_dims=1)
         u_rec = ifft(u_hat, num_spatial_dims=1, num_points=N)
-        assert u_rec == pytest.approx(u, abs=1e-5)
+        assert np.asarray(u_rec) == pytest.approx(np.asarray(u), abs=1e-5)
 
     def test_2d_multi_channel(self):
         """Multi-channel 2D FFT roundtrip."""
@@ -291,7 +300,7 @@ class TestFFTMultiChannel:
         )
         u_hat = fft(u, num_spatial_dims=2)
         u_rec = ifft(u_hat, num_spatial_dims=2, num_points=N)
-        assert u_rec == pytest.approx(u, abs=1e-5)
+        assert np.asarray(u_rec) == pytest.approx(np.asarray(u), abs=1e-5)
 
 
 # ===========================================================================
@@ -330,7 +339,7 @@ class TestGradientInnerProductOperator:
         result_hat = operator * u_hat
         result = ifft(result_hat, num_spatial_dims=1, num_points=N)
         expected = c * k * jnp.cos(k * grid)
-        assert result == pytest.approx(expected, abs=1e-4)
+        assert np.asarray(result) == pytest.approx(np.asarray(expected), abs=1e-4)
 
 
 # ===========================================================================
@@ -356,7 +365,7 @@ class TestGetFourierCoefficients:
         coefficients = get_fourier_coefficients(
             u, scaling_compensation_mode=None, round=None
         )
-        assert coefficients == pytest.approx(raw_hat, abs=1e-6)
+        assert np.asarray(coefficients) == pytest.approx(np.asarray(raw_hat), abs=1e-6)
 
     def test_no_rounding(self):
         """With round=None, coefficients should not be rounded."""
@@ -402,7 +411,7 @@ class TestIFFTEdgeCases:
         u_hat = fft(u, num_spatial_dims=2)
         # Calling without num_points should work for 2D
         u_rec = ifft(u_hat, num_spatial_dims=None, num_points=None)
-        assert u_rec == pytest.approx(u, abs=1e-5)
+        assert np.asarray(u_rec) == pytest.approx(np.asarray(u), abs=1e-5)
 
 
 # ===========================================================================
@@ -444,9 +453,13 @@ class TestMultiChannelDerivative:
         # shape: (2, 1, N) — 2 channels, 1 spatial dim
         assert u_der.shape == (2, 1, N)
         # d/dx sin(x) = cos(x)
-        assert u_der[0, 0] == pytest.approx(jnp.cos(grid[0]), abs=1e-4)
+        assert np.asarray(u_der[0, 0]) == pytest.approx(
+            np.asarray(jnp.cos(grid[0])), abs=1e-4
+        )
         # d/dx cos(2x) = -2*sin(2x)
-        assert u_der[1, 0] == pytest.approx(-2 * jnp.sin(2 * grid[0]), abs=1e-4)
+        assert np.asarray(u_der[1, 0]) == pytest.approx(
+            np.asarray(-2 * jnp.sin(2 * grid[0])), abs=1e-4
+        )
 
 
 # ===========================================================================

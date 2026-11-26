@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import exponax_spde as ex
@@ -45,9 +46,9 @@ def test_constant_offset(num_spatial_dims: int):
     assert ex.metrics.sMSE(u_0, u_1) == ex.metrics.sMSE(u_1, u_0)
 
     assert ex.metrics.RMSE(u_1, u_0, domain_extent=1.0) == pytest.approx(2.0)
-    assert ex.metrics.RMSE(u_1, u_0, domain_extent=DOMAIN_EXTENT) == pytest.approx(
-        jnp.sqrt(DOMAIN_EXTENT**num_spatial_dims * 4.0)
-    )
+    assert np.asarray(
+        ex.metrics.RMSE(u_1, u_0, domain_extent=DOMAIN_EXTENT)
+    ) == pytest.approx(np.asarray(jnp.sqrt(DOMAIN_EXTENT**num_spatial_dims * 4.0)))
 
     # RMSE is symmetric
     assert ex.metrics.RMSE(u_0, u_1, domain_extent=1.0) == ex.metrics.RMSE(
@@ -58,14 +59,14 @@ def test_constant_offset(num_spatial_dims: int):
     )
 
     # == approx(1.0)
-    assert ex.metrics.nRMSE(u_1, u_0) == pytest.approx(
-        jnp.sqrt((4.0 - 2.0) ** 2 / 2.0**2)
+    assert np.asarray(ex.metrics.nRMSE(u_1, u_0)) == pytest.approx(
+        np.asarray(jnp.sqrt((4.0 - 2.0) ** 2 / 2.0**2))
     )
     assert ex.metrics.nRMSE(u_1, u_0) == pytest.approx(1.0)
 
     # == approx(sqrt(1/4)) == approx(0.5)
-    assert ex.metrics.nRMSE(u_0, u_1) == pytest.approx(
-        jnp.sqrt((2.0 - 4.0) ** 2 / 4.0**2)
+    assert np.asarray(ex.metrics.nRMSE(u_0, u_1)) == pytest.approx(
+        np.asarray(jnp.sqrt((2.0 - 4.0) ** 2 / 4.0**2))
     )
     assert ex.metrics.nRMSE(u_0, u_1) == pytest.approx(0.5)
 
@@ -78,13 +79,21 @@ def test_constant_offset(num_spatial_dims: int):
 
     # The Fourier based losses must be similar to their spatial counterparts due
     # to Parseval's identity
-    assert ex.metrics.fourier_MSE(u_1, u_0) == pytest.approx(ex.metrics.MSE(u_1, u_0))
-    assert ex.metrics.fourier_MSE(u_0, u_1) == pytest.approx(ex.metrics.MSE(u_0, u_1))
+    assert np.asarray(ex.metrics.fourier_MSE(u_1, u_0)) == pytest.approx(
+        np.asarray(ex.metrics.MSE(u_1, u_0))
+    )
+    assert np.asarray(ex.metrics.fourier_MSE(u_0, u_1)) == pytest.approx(
+        np.asarray(ex.metrics.MSE(u_0, u_1))
+    )
     # This equivalence does not hold for the MAE
     # assert ex.metrics.fourier_MAE(u_1, u_0) == pytest.approx(ex.metrics.MAE(u_1, u_0))
     # assert ex.metrics.fourier_MAE(u_0, u_1) == pytest.approx(ex.metrics.MAE(u_0, u_1))
-    assert ex.metrics.fourier_RMSE(u_1, u_0) == pytest.approx(ex.metrics.RMSE(u_1, u_0))
-    assert ex.metrics.fourier_RMSE(u_0, u_1) == pytest.approx(ex.metrics.RMSE(u_0, u_1))
+    assert np.asarray(ex.metrics.fourier_RMSE(u_1, u_0)) == pytest.approx(
+        np.asarray(ex.metrics.RMSE(u_1, u_0))
+    )
+    assert np.asarray(ex.metrics.fourier_RMSE(u_0, u_1)) == pytest.approx(
+        np.asarray(ex.metrics.RMSE(u_0, u_1))
+    )
 
 
 def test_fourier_losses():
@@ -113,18 +122,22 @@ def test_fourier_equals_spatial_aggregation(num_spatial_dims, ic_gen):
     u_0 = ic_gen(NUM_POINTS, key=jax.random.PRNGKey(0))
     u_1 = ic_gen(NUM_POINTS, key=jax.random.PRNGKey(1))
 
-    assert ex.metrics.fourier_MSE(
-        u_1, u_0, domain_extent=DOMAIN_EXTENT
-    ) == pytest.approx(ex.metrics.MSE(u_1, u_0, domain_extent=DOMAIN_EXTENT))
+    assert np.asarray(
+        ex.metrics.fourier_MSE(u_1, u_0, domain_extent=DOMAIN_EXTENT)
+    ) == pytest.approx(
+        np.asarray(ex.metrics.MSE(u_1, u_0, domain_extent=DOMAIN_EXTENT))
+    )
     # # This equivalence does not hold for the MAE
     # assert (
     #   ex.metrics.fourier_MAE(u_1, u_0, domain_extent=DOMAIN_EXTENT)
     #   == pytest.approx(
     #     ex.metrics.MAE(u_1, u_0, domain_extent=DOMAIN_EXTENT)
     # )
-    assert ex.metrics.fourier_RMSE(
-        u_1, u_0, domain_extent=DOMAIN_EXTENT
-    ) == pytest.approx(ex.metrics.RMSE(u_1, u_0, domain_extent=DOMAIN_EXTENT))
+    assert np.asarray(
+        ex.metrics.fourier_RMSE(u_1, u_0, domain_extent=DOMAIN_EXTENT)
+    ) == pytest.approx(
+        np.asarray(ex.metrics.RMSE(u_1, u_0, domain_extent=DOMAIN_EXTENT))
+    )
 
 
 @pytest.mark.parametrize(
@@ -212,9 +225,9 @@ def test_sobolev_vs_manual(num_spatial_dims, metric_fn_name):
         u_0, u_1, domain_extent=DOMAIN_EXTENT
     ) + fourier_metric_fn(u_0, u_1, domain_extent=DOMAIN_EXTENT, derivative_order=1)
 
-    assert sobolev_metric_fn(u_0, u_1, domain_extent=DOMAIN_EXTENT) == pytest.approx(
-        correct_metric_value
-    )
+    assert np.asarray(
+        sobolev_metric_fn(u_0, u_1, domain_extent=DOMAIN_EXTENT)
+    ) == pytest.approx(np.asarray(correct_metric_value))
 
 
 # # Below always evaluates to 2 * pi no matter the values of k and l
