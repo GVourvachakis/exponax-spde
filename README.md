@@ -302,10 +302,10 @@ and this repository:
   year={2024}
 }
 
-@software{vakis2025exponaxspde,
-  author = {Vakis, Georgios},
+@software{vourvachakis2026exponaxspde,
+  author = {Vourvachakis, Georgios},
   title  = {exponax-spde: Stochastic PDE solvers built on top of exponax},
-  year   = {2025},
+  year   = {2026},
   url    = {https://github.com/GVourvachakis/exponax-spde},
 }
 ```
