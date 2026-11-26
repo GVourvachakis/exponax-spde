@@ -49,8 +49,9 @@ FN_DICT_2D = {
     "simple_sine_y": lambda x: jnp.sin(2 * jnp.pi * x[1:2]),
     "simple_cosine_y": lambda x: jnp.cos(2 * jnp.pi * x[1:2]),
     "mixed_sine": lambda x: jnp.sin(2 * jnp.pi * x[0:1]) * jnp.sin(6 * jnp.pi * x[1:2]),
-    "mixed_cosine": lambda x: jnp.cos(2 * jnp.pi * x[0:1])
-    * jnp.cos(6 * jnp.pi * x[1:2]),
+    "mixed_cosine": lambda x: (
+        jnp.cos(2 * jnp.pi * x[0:1]) * jnp.cos(6 * jnp.pi * x[1:2])
+    ),
     "complicated_fn_x": lambda x: jnp.exp(-3 * (x[0:1] - 5.0) ** 2),
     "complicated_fn_y": lambda x: jnp.exp(-3 * (x[1:2] - 5.0) ** 2),
     "complicated_fn_xy": lambda x: jnp.exp(
@@ -104,12 +105,16 @@ FN_DICT_3D = {
     "simple_cosine_y": lambda x: jnp.cos(2 * jnp.pi * x[1:2]),
     "simple_sine_z": lambda x: jnp.sin(2 * jnp.pi * x[2:3]),
     "simple_cosine_z": lambda x: jnp.cos(2 * jnp.pi * x[2:3]),
-    "mixed_sine": lambda x: jnp.sin(2 * jnp.pi * x[0:1])
-    * jnp.sin(6 * jnp.pi * x[1:2])
-    * jnp.sin(10 * jnp.pi * x[2:3]),
-    "mixed_cosine": lambda x: jnp.cos(2 * jnp.pi * x[0:1])
-    * jnp.cos(6 * jnp.pi * x[1:2])
-    * jnp.cos(10 * jnp.pi * x[2:3]),
+    "mixed_sine": lambda x: (
+        jnp.sin(2 * jnp.pi * x[0:1])
+        * jnp.sin(6 * jnp.pi * x[1:2])
+        * jnp.sin(10 * jnp.pi * x[2:3])
+    ),
+    "mixed_cosine": lambda x: (
+        jnp.cos(2 * jnp.pi * x[0:1])
+        * jnp.cos(6 * jnp.pi * x[1:2])
+        * jnp.cos(10 * jnp.pi * x[2:3])
+    ),
     "complicated_fn_x": lambda x: jnp.exp(-3 * (x[0:1] - 5.0) ** 2),
     "complicated_fn_y": lambda x: jnp.exp(-3 * (x[1:2] - 5.0) ** 2),
     "complicated_fn_z": lambda x: jnp.exp(-3 * (x[2:3] - 5.0) ** 2),
