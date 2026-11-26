@@ -45,7 +45,7 @@ from collections.abc import Callable
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from exponax._spectral import get_fourier_coefficients
+from exponax import spectral
 from jaxtyping import Array, Float, PRNGKeyArray
 
 # ---------------------------------------------------------------------------
@@ -206,7 +206,7 @@ def structure_factor(
     flat = tail.reshape((-1,) + tuple(spatial_shape))  # (M*T_stat, 1, *N)
 
     coeffs_per_snapshot = jax.vmap(
-        lambda u: get_fourier_coefficients(
+        lambda u: spectral.get_fourier_coefficients(
             u, scaling_compensation_mode="coef_extraction", round=None
         )
     )(flat)  # (M*T_stat, 1, *K)
