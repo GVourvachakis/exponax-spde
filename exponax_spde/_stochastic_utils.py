@@ -330,20 +330,29 @@ def richardson_weak_extrapolation(
     - ``"var_coarse"``, ``"var_fine"``: Ensemble variance of the final
         state.
     """
+    if num_steps_coarse == 0:
+        raise IndexError("Cannot select a final state from a zero-step rollout.")
     key_c, key_f = jax.random.split(key)
 
-    ens_coarse_fn = stochastic_ensemble_rollout(
-        stepper_coarse, num_steps_coarse, num_samples, include_init=False
-    )
-    ens_fine_fn = stochastic_ensemble_rollout(
-        stepper_fine, 2 * num_steps_coarse, num_samples, include_init=False
-    )
+    def final_states(stepper, num_steps, key):
+        def ensemble(u_init, ensemble_key):
+            def one_path(path_key):
+                def step(carry, _):
+                    u, rng = carry
+                    rng, subkey = jax.random.split(rng)
+                    return (stepper(u, key=subkey), rng), None
 
-    ens_c = jax.jit(ens_coarse_fn)(u0, key_c)  # (M, T, 1, *N)
-    ens_f = jax.jit(ens_fine_fn)(u0, key_f)
+                (final, _), _ = jax.lax.scan(
+                    step, (u_init, path_key), None, length=num_steps
+                )
+                return final
 
-    final_c = ens_c[:, -1, ...]  # (M, 1, *N)
-    final_f = ens_f[:, -1, ...]
+            return jax.vmap(one_path)(jax.random.split(ensemble_key, num_samples))
+
+        return jax.jit(ensemble)(u0, key)
+
+    final_c = final_states(stepper_coarse, num_steps_coarse, key_c)
+    final_f = final_states(stepper_fine, 2 * num_steps_coarse, key_f)
 
     mean_c = jnp.mean(final_c, axis=0)
     mean_f = jnp.mean(final_f, axis=0)
