@@ -15,14 +15,17 @@ animate_state_3d_facet, plot_spatio_temporal_2d, plot_spatio_temporal_2d_facet,
 volume_render_state_3d) are skipped because they require the vape4d package.
 """
 
+import gc
+
 import jax
 import jax.numpy as jnp
 import matplotlib
 import matplotlib.pyplot as plt
 import pytest
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
 from matplotlib.figure import Figure
+from PIL import Image
 
 import exponax_spde as ex
 from exponax_spde.viz._volume import triangle_wave, zigzag_alpha
@@ -38,10 +41,14 @@ KEY = jax.random.PRNGKey(0)
 
 
 @pytest.fixture(autouse=True)
-def _close_figures():
+def _close_figures(request):
     """Close all matplotlib figures after every test to prevent memory leaks."""
     yield
     plt.close("all")
+
+    if request.node.get_closest_marker("filterwarnings") is not None:
+        # Finalise cyclic animation callbacks while the construction filter applies.
+        gc.collect()
 
 
 # ===========================================================================
@@ -429,6 +436,9 @@ class TestPlotState2dFacet:
 # ---- animate_state_1d -----------------------------------------------------
 
 
+@pytest.mark.filterwarnings(
+    "ignore:Animation was deleted without rendering anything:UserWarning"
+)
 class TestAnimateState1d:
     def test_basic_single_channel(self):
         trj = jax.random.normal(KEY, (10, 1, 64))
@@ -460,15 +470,13 @@ class TestAnimateState1d:
         ani = ex.viz.animate_state_1d(trj, dt=0.1, include_init=True)
         assert isinstance(ani, FuncAnimation)
 
-    def test_frame_count(self):
-        trj = jax.random.normal(KEY, (15, 1, 64))
-        ani = ex.viz.animate_state_1d(trj)
-        assert ani._save_count == 15
-
 
 # ---- animate_spatio_temporal ----------------------------------------------
 
 
+@pytest.mark.filterwarnings(
+    "ignore:Animation was deleted without rendering anything:UserWarning"
+)
 class TestAnimateSpatioTemporal:
     def test_basic(self):
         """Input shape: (S, T, 1, N) - S outer time steps."""
@@ -496,11 +504,6 @@ class TestAnimateSpatioTemporal:
         ani = ex.viz.animate_spatio_temporal(trjs, dt=0.05, include_init=True)
         assert isinstance(ani, FuncAnimation)
 
-    def test_frame_count(self):
-        trjs = jax.random.normal(KEY, (8, 20, 1, 64))
-        ani = ex.viz.animate_spatio_temporal(trjs)
-        assert ani._save_count == 8
-
     def test_wrong_ndim_raises(self):
         trjs_3d = jax.random.normal(KEY, (20, 1, 64))
         with pytest.raises(ValueError, match="four-axis"):
@@ -510,6 +513,9 @@ class TestAnimateSpatioTemporal:
 # ---- animate_state_2d -----------------------------------------------------
 
 
+@pytest.mark.filterwarnings(
+    "ignore:Animation was deleted without rendering anything:UserWarning"
+)
 class TestAnimateState2d:
     def test_basic(self):
         trj = jax.random.normal(KEY, (10, 1, 32, 32))
@@ -541,11 +547,6 @@ class TestAnimateState2d:
         ani = ex.viz.animate_state_2d(trj, dt=0.1, include_init=True)
         assert isinstance(ani, FuncAnimation)
 
-    def test_frame_count(self):
-        trj = jax.random.normal(KEY, (12, 1, 32, 32))
-        ani = ex.viz.animate_state_2d(trj)
-        assert ani._save_count == 12
-
     def test_wrong_ndim_raises(self):
         trj_3d = jax.random.normal(KEY, (1, 32, 32))
         with pytest.raises(ValueError, match="four-axis"):
@@ -560,6 +561,9 @@ class TestAnimateState2d:
 # ---- animate_state_1d_facet -----------------------------------------------
 
 
+@pytest.mark.filterwarnings(
+    "ignore:Animation was deleted without rendering anything:UserWarning"
+)
 class TestAnimateState1dFacet:
     def test_basic(self):
         """Input shape: (B, T, C, N)."""
@@ -604,11 +608,6 @@ class TestAnimateState1dFacet:
         ani = ex.viz.animate_state_1d_facet(trj, grid=(1, 1))
         assert isinstance(ani, FuncAnimation)
 
-    def test_frame_count(self):
-        trj = jax.random.normal(KEY, (4, 15, 1, 64))
-        ani = ex.viz.animate_state_1d_facet(trj, grid=(2, 2))
-        assert ani._save_count == 15
-
     def test_wrong_ndim_raises(self):
         trj_3d = jax.random.normal(KEY, (10, 1, 64))
         with pytest.raises(ValueError, match="four-axis"):
@@ -618,6 +617,9 @@ class TestAnimateState1dFacet:
 # ---- animate_state_2d_facet -----------------------------------------------
 
 
+@pytest.mark.filterwarnings(
+    "ignore:Animation was deleted without rendering anything:UserWarning"
+)
 class TestAnimateState2dFacet:
     def test_facet_over_channels(self):
         """facet_over_channels=True: input (T, C, N, N)."""
@@ -709,6 +711,26 @@ class TestAnimateState2dFacet:
         trj_4d = jax.random.normal(KEY, (10, 4, 16, 16))
         with pytest.raises(ValueError, match="five-axis"):
             ex.viz.animate_state_2d_facet(trj_4d, facet_over_channels=False)
+
+
+@pytest.mark.parametrize(
+    ("animate", "shape", "kwargs"),
+    [
+        (ex.viz.animate_state_1d, (3, 1, 16), {}),
+        (ex.viz.animate_spatio_temporal, (3, 4, 1, 16), {}),
+        (ex.viz.animate_state_2d, (3, 1, 8, 8), {}),
+        (ex.viz.animate_state_1d_facet, (2, 3, 1, 16), {"grid": (1, 2)}),
+        (ex.viz.animate_state_2d_facet, (3, 2, 8, 8), {"grid": (1, 2)}),
+    ],
+    ids=["1d", "spatio-temporal", "2d", "1d-facet", "2d-facet"],
+)
+def test_animation_renders(animate, shape, kwargs, tmp_path):
+    animation = animate(jax.random.normal(KEY, shape), **kwargs)
+    destination = tmp_path / "animation.gif"
+    animation.save(destination, writer=PillowWriter(fps=4), dpi=48)
+    with Image.open(destination) as gif:
+        assert gif.format == "GIF"
+        assert gif.n_frames == 3
 
 
 # ===========================================================================

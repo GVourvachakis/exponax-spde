@@ -6037,4 +6037,4 @@ vape4d = ["vape4d"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "7e9b1f29ca6b25fea685ae7cb3a5bd33212291356dc31381657abb2c320c42bd"
+content-hash = "070265f5cf191d8896ab262f5aed4d54730fc9bd6d8de9ec1fef327c0d3e94d6"

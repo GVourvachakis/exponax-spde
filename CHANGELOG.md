@@ -25,6 +25,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The test extra now requires pytest-cov 2.3.1 or later. CI exercises coverage
+  with the minimum supported test dependencies.
+
 - Reject negative `noise_alpha`, `sigma` and `diffusivity` (#8).
 
 - Richardson weak extrapolation retains only its final states.
