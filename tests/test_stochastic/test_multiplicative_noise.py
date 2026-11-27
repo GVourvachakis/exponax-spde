@@ -233,6 +233,13 @@ def test_white_noise_resolution_and_step_scaling():
     assert np.all(np.abs(n_slopes - 1) <= 5 * se.sum() / np.log(n_ratio))
 
 
+def _advance(stepper, initial, increments):
+    apply = jax.vmap(stepper.step_with_increment)
+    return jax.lax.scan(
+        lambda state, dw: (apply(state, dw), None), initial, increments
+    )[0]
+
+
 def _paired_order_interval(hs, squared, *, seed, resamples=500):
     """Fit log-RMS slopes after resampling the same paths at every level."""
     rng = np.random.default_rng(seed)
@@ -278,12 +285,6 @@ def test_coupled_geometric_brownian_motion_orders():
     initial = fft(jnp.full((batch, 1, n), u0, dtype=jnp.float64), num_spatial_dims=1)
     ratios = levels[-1] // levels
 
-    def advance(stepper, initial, increments):
-        apply = jax.vmap(stepper.step_with_increment)
-        return jax.lax.scan(
-            lambda state, dw: (apply(state, dw), None), initial, increments
-        )[0]
-
     @jax.jit
     def sample_batch(key):
         def block(carry, index):
@@ -302,7 +303,7 @@ def test_coupled_geometric_brownian_motion_orders():
             ]
             next_states = tuple(
                 tuple(
-                    advance(stepper, state, dw)
+                    _advance(stepper, state, dw)
                     for stepper, state, dw in zip(
                         steppers, path, increments, strict=True
                     )
@@ -355,3 +356,121 @@ def test_coupled_geometric_brownian_motion_orders():
         )
         assert minimum <= lower <= upper <= maximum
         assert result.status == "PASS", result.message
+
+
+@pytest.mark.slow
+def test_coupled_spde_strong_order():
+    """The grid SDE has commuting diagonal diffusion with α=2.
+
+    Milstein at T/1024 approximates the common terminal reference. Compare
+    paired RMS errors with a first-order drift, using 4096 paths, delta-method
+    RMS SEs and 95% intervals from jointly resampling the paths. Choose the
+    coarsest dyadic h satisfying ν(πN)²h≤1 and its next three refinements.
+    Here σ² v_W = σ² h ∑(1+|k|²)^(-α)/ℓ, including positive and negative
+    frequencies. For 32, 64, 128, 256 and 1024 steps the respective values
+    are 0.001955713, 0.0009778565, 0.0004889282, 0.0002444641 and 0.0000611160.
+    """
+    n, horizon, nu, sigma, alpha = 32, 0.25, 0.01, 0.5, 2
+    samples, batch = 4096, 128
+    levels = np.array([32, 64, 128, 256])
+    fine_steps = 1024
+    hs = horizon / levels
+    ratios = fine_steps // levels
+    block_steps = int(ratios[0])
+    k = 2 * np.pi * np.fft.fftfreq(n, d=1 / n)
+    sigma2_vw_per_h = sigma**2 * np.sum((1 + k**2) ** (-alpha))
+    assert np.max(nu * k**2 * hs[0]) <= 1
+    assert np.max(nu * k**2 * hs[0] * 2) > 1
+
+    def make_stepper(steps, milstein):
+        return StochasticAllenCahn(
+            1,
+            1.0,
+            n,
+            horizon / int(steps),
+            diffusivity=nu,
+            lambda_=1,
+            sigma=sigma,
+            noise_alpha=alpha,
+            noise_type="multiplicative",
+            use_milstein=milstein,
+            use_taming=False,
+        )
+
+    fine = make_stepper(fine_steps, True)
+    methods = tuple(
+        tuple(make_stepper(count, milstein) for count in levels)
+        for milstein in (False, True)
+    )
+    x = jnp.arange(n, dtype=jnp.float64) / n
+    initial = fft(
+        jnp.broadcast_to(0.5 + 0.2 * jnp.sin(2 * jnp.pi * x), (batch, 1, n)),
+        num_spatial_dims=1,
+    )
+
+    @jax.jit
+    def sample_batch(key):
+        def block(carry, i):
+            fine_state, states = carry
+            keys = jax.random.split(jax.random.fold_in(key, i), (block_steps, batch))
+            sequential = jax.vmap(jax.vmap(fine.sample_increment))(keys)
+            increments = tuple(
+                jax.vmap(jax.vmap(fine.coarsen_increments, in_axes=1))(
+                    sequential.reshape(-1, int(r), *sequential.shape[1:])
+                )
+                for r in ratios
+            )
+            states = tuple(
+                tuple(
+                    _advance(stepper, state, dw)
+                    for stepper, state, dw in zip(
+                        steppers, path, increments, strict=True
+                    )
+                )
+                for steppers, path in zip(methods, states, strict=True)
+            )
+            return (_advance(fine, fine_state, sequential), states), None
+
+        states = tuple(tuple(initial for _ in levels) for _ in methods)
+        (target, terminal), _ = jax.lax.scan(
+            block, (initial, states), jnp.arange(levels[0])
+        )
+        error = ifft(jnp.asarray(terminal) - target, num_spatial_dims=1, num_points=n)
+        return jnp.mean(error**2, axis=(-2, -1))
+
+    key = jax.random.PRNGKey(262)
+    squared = np.concatenate(
+        [
+            np.asarray(sample_batch(jax.random.fold_in(key, i)))
+            for i in range(samples // batch)
+        ],
+        axis=-1,
+    )
+    mse = squared.mean(axis=-1)
+    rms = np.sqrt(mse)
+    se = squared.std(axis=-1, ddof=1) / (2 * np.sqrt(samples) * rms)
+    intervals = _paired_order_interval(hs, squared, seed=263, resamples=1000)
+    print("SPDE n_steps,h,sigma²v_W,RMS_EM,SE_EM,RMS_Milstein,SE_Milstein")
+    for i, (count, h) in enumerate(zip(levels, hs, strict=True)):
+        print(
+            f"{count},{h:.10g},{h * sigma2_vw_per_h:.10g},"
+            f"{rms[0, i]:.9g},{se[0, i]:.9g},{rms[1, i]:.9g},{se[1, i]:.9g}"
+        )
+    h_fine = horizon / fine_steps
+    print(f"{fine_steps},{h_fine:.10g},{h_fine * sigma2_vw_per_h:.10g},reference")
+    bands = ((0.35, 0.70), (0.80, 1.25))
+    results = [
+        check_order(hs, errors, order, tol_low=0.2, tol_high=0.2)
+        for errors, order in zip(rms, (0.5, 1.0), strict=True)
+    ]
+    for method, res, (lo, hi) in zip(
+        ("Euler–Maruyama", "Milstein"), results, intervals, strict=True
+    ):
+        print(f"{method} {res.fitted:.4f} (95% CI [{lo:.4f}, {hi:.4f}])")
+        print(f"{res.status}: {res.message}")
+    assert np.all(se / rms <= 0.03)
+    for res, (lo, hi), (minimum, maximum) in zip(
+        results, intervals, bands, strict=True
+    ):
+        assert res.status == "PASS", res.message
+        assert minimum <= lo <= hi <= maximum
