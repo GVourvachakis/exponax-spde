@@ -282,18 +282,10 @@ class StochasticAllenCahn(BaseStepper):
     # and must be static so JAX/Equinox never treats it as a traceable leaf.
     noise_type: str = eqx.field(static=True)
 
-    # ── Precomputed spectral arrays ────────────────────────────────────
-    # _noise_std      : σ · (1+|k|²)^{-α/2} · √(Δt/dx^d)
-    #                   Additive noise: σ is embedded; variance per step
-    #                   is σ² · Q_base · factor.
-    # _noise_std_base :   (1+|k|²)^{-α/2} · √(Δt/dx^d)
-    #                   Multiplicative noise: σ-free; σ enters exactly
-    #                   once via the u · dW product, preventing the
-    #                   σ-double-counting bug of an earlier version.
     _linear_symbol: Array
     _propagator: Array
-    _noise_std: Array  # shape (1, *wavenumber_shape)
-    _noise_std_base: Array  # shape (1, *wavenumber_shape)
+    _additive_amplitude: Array | None
+    _noise_std_base: Array | None
 
     def __init__(
         self,
@@ -355,16 +347,15 @@ class StochasticAllenCahn(BaseStepper):
         k_sq = -jnp.sum(deriv_op**2, axis=0, keepdims=True).real  # (1, *wn)
         dx_d = (domain_extent / num_points) ** num_spatial_dims
 
-        # Spectral filter shared by both noise variants:
-        #   filter_k = (1 + |k|²_phys)^{-α/2}
-        filter_k = (1.0 + k_sq) ** (-noise_alpha / 2.0)
-        sqrt_dt_over_dxd = jnp.sqrt(dt / dx_d)
-
-        # Additive variant: σ pre-multiplied so dW_hat = scaling·noise_std·Z
-        self._noise_std = sigma * filter_k * sqrt_dt_over_dxd
-
-        # Multiplicative variant: σ-free so σ enters exactly once via σu·dW
-        self._noise_std_base = filter_k * sqrt_dt_over_dxd
+        if noise_type == "additive":
+            q = (1.0 + k_sq) ** (-noise_alpha)
+            variance_factor = dt * phi1(2 * dt * self._linear_symbol)
+            self._additive_amplitude = sigma * jnp.sqrt(q * variance_factor / dx_d)
+            self._noise_std_base = None
+        else:
+            filter_k = (1.0 + k_sq) ** (-noise_alpha / 2.0)
+            self._noise_std_base = filter_k * jnp.sqrt(dt / dx_d)
+            self._additive_amplitude = None
 
         # ── BaseStepper.__init__ (confirmed signature) ─────────────────
         # Signature: (num_spatial_dims, domain_extent, num_points, dt,
@@ -470,12 +461,42 @@ class StochasticAllenCahn(BaseStepper):
                 "Use jax.vmap for batched operation."
             )
         u_hat = fft(u, num_spatial_dims=self.num_spatial_dims)
-        u_hat_next = self._stochastic_step(u_hat, key=key)
+        u_hat_next = self.step_fourier(u_hat, key=key)
         return ifft(
             u_hat_next,
             num_spatial_dims=self.num_spatial_dims,
             num_points=self.num_points,
         ).real
+
+    def sample_increment(self, key: PRNGKeyArray) -> Complex[Array, "1 ... (N//2)+1"]:
+        """Draw one additive stochastic convolution in raw rFFT units."""
+        amplitude = self._additive_amplitude
+        if amplitude is None:
+            raise NotImplementedError(
+                "sample_increment for multiplicative noise is pending #4b."
+            )
+        shape = (self.num_channels,) + _spatial_shape(
+            self.num_spatial_dims, self.num_points
+        )
+        white = jax.random.normal(key, shape, dtype=amplitude.dtype)
+        return amplitude * fft(white, num_spatial_dims=self.num_spatial_dims)
+
+    def step_with_increment(
+        self,
+        u_hat: Complex[Array, "1 ... (N//2)+1"],
+        increment: Complex[Array, "1 ... (N//2)+1"],
+    ) -> Complex[Array, "1 ... (N//2)+1"]:
+        """Apply ETDRK1 drift and the supplied increment."""
+        amplitude = self._additive_amplitude
+        if amplitude is None:
+            raise NotImplementedError(
+                "step_with_increment for multiplicative noise is pending #4b."
+            )
+        if increment.shape != amplitude.shape:
+            raise ValueError(
+                f"Expected increment shape {amplitude.shape}, got {increment.shape}."
+            )
+        return super().step_fourier(u_hat) + increment
 
     # ── Core EEM step ──────────────────────────────────────────────────
 
@@ -485,7 +506,7 @@ class StochasticAllenCahn(BaseStepper):
         *,
         key: PRNGKeyArray,
     ) -> Complex[Array, "1 ... (N//2)+1"]:
-        """EEM update with exact modewise stochastic-integral variance."""
+        """Legacy multiplicative EEM update, pending #4b."""
 
         # 1. ETD coefficients from the ETDRK integrator stored by BaseStepper.
         # Replaced in the fix for #4.
@@ -522,47 +543,38 @@ class StochasticAllenCahn(BaseStepper):
             self.num_spatial_dims, self.num_points, mode="reconstruction"
         )
 
-        # 5. Build the noise increment.
-        if self.noise_type == "additive":
-            # _noise_std already contains σ.
-            # Coefficient-space variance per step: σ² · Q_base · factor.
-            noise_var = (self._noise_std**2) * factor
-            dW_hat = scaling * jnp.sqrt(noise_var) * (z_r + 1j * z_i) / jnp.sqrt(2.0)
-            noise_increment = dW_hat
+        # _noise_std_base does NOT contain σ; σ enters exactly once
+        # below via the σ·u·dW product to avoid double-counting.
+        # Coefficient-space base variance per step: Q_base · factor.
+        noise_var_base = (self._noise_std_base**2) * factor
+        dW_hat_base = (
+            scaling * jnp.sqrt(noise_var_base) * (z_r + 1j * z_i) / jnp.sqrt(2.0)
+        )
+        nl = self._integrator._nonlinear_fun
+        u_phys = nl.ifft(nl.dealias(u_hat))
+        dW_phys_base = nl.ifft(dW_hat_base).real
 
-        else:  # multiplicative: σ(u) = σu
-            # _noise_std_base does NOT contain σ; σ enters exactly once
-            # below via the σ·u·dW product to avoid double-counting.
-            # Coefficient-space base variance per step: Q_base · factor.
-            noise_var_base = (self._noise_std_base**2) * factor
-            dW_hat_base = (
-                scaling * jnp.sqrt(noise_var_base) * (z_r + 1j * z_i) / jnp.sqrt(2.0)
+        # σ · u · dW  (σ applied exactly once)
+        noise_increment = nl.fft(self.sigma * u_phys * dW_phys_base)
+
+        if self.use_milstein:
+            # First-order Milstein correction for σ(u) = σu
+            # (Jentzen & Kloeden, 2009a):
+            #
+            #   ½ σ(u) σ'(u) (dW² - E[dW²]) = ½ σ² u (dW² - E[dW²])
+            #
+            # E[dW_phys_base(x)²] is recovered from the coefficient-space
+            # variance via Parseval / the scaling array.
+            var_dW_hat_base = (scaling**2) * noise_var_base
+            E_dW_phys_base_sq = nl.ifft(var_dW_hat_base).real
+            mil_phys = (
+                0.5 * self.sigma**2 * u_phys * (dW_phys_base**2 - E_dW_phys_base_sq)
             )
-            nl = self._integrator._nonlinear_fun
-            u_phys = nl.ifft(nl.dealias(u_hat))
-            dW_phys_base = nl.ifft(dW_hat_base).real
-
-            # σ · u · dW  (σ applied exactly once)
-            noise_increment = nl.fft(self.sigma * u_phys * dW_phys_base)
-
-            if self.use_milstein:
-                # First-order Milstein correction for σ(u) = σu
-                # (Jentzen & Kloeden, 2009a):
-                #
-                #   ½ σ(u) σ'(u) (dW² - E[dW²]) = ½ σ² u (dW² - E[dW²])
-                #
-                # E[dW_phys_base(x)²] is recovered from the coefficient-space
-                # variance via Parseval / the scaling array.
-                var_dW_hat_base = (scaling**2) * noise_var_base
-                E_dW_phys_base_sq = nl.ifft(var_dW_hat_base).real
-                mil_phys = (
-                    0.5 * self.sigma**2 * u_phys * (dW_phys_base**2 - E_dW_phys_base_sq)
-                )
-                # NOTE: the φ₁Δt prefactor treats the Milstein correction as
-                # an ETD nonlinear term.  This is non-standard (see "Known
-                # limitations" in the module docstring) but retained for
-                # backward compatibility with the existing passing tests.
-                noise_increment = noise_increment + phi_1_dt * nl.fft(mil_phys)
+            # NOTE: the φ₁Δt prefactor treats the Milstein correction as
+            # an ETD nonlinear term.  This is non-standard (see "Known
+            # limitations" in the module docstring) but retained for
+            # backward compatibility with the existing passing tests.
+            noise_increment = noise_increment + phi_1_dt * nl.fft(mil_phys)
 
         return drift + noise_increment
 
@@ -592,4 +604,6 @@ class StochasticAllenCahn(BaseStepper):
         - `u_next_hat`: Fourier transform of the updated field, same
             shape as ``u_hat``.
         """
+        if self.noise_type == "additive":
+            return self.step_with_increment(u_hat, self.sample_increment(key))
         return self._stochastic_step(u_hat, key=key)
