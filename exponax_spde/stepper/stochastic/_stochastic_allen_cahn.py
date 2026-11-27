@@ -271,10 +271,11 @@ class StochasticAllenCahn(BaseStepper):
                 "tracked in #14."
             )
 
-        # Guard: Milstein for space-time white noise requires iterated
-        # stochastic integrals that diverge (Lord et al., 2014, §10.5).
-        if noise_alpha == 0.0 and use_milstein:
-            use_milstein = False
+        if use_milstein and noise_alpha <= num_spatial_dims / 2:
+            raise ValueError(
+                "Milstein requires trace-class noise (noise_alpha > "
+                "num_spatial_dims / 2). See #8 for other noise regularity conditions."
+            )
 
         # ── Store all fields before super().__init__ ───────────────────
         # BaseStepper.__init__ immediately calls _build_linear_operator
