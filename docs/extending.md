@@ -2,7 +2,7 @@
 
 This guide walks through the exact steps needed to add a new stochastic PDE
 stepper to `exponax_spde`, following the same pattern as `StochasticAllenCahn`.
-StochasticAllenCahn supports only `order=1` (exponential Euler–Maruyama).
+`StochasticAllenCahn` supports drift orders 1–4 and defaults to order 1.
 Use the same order for the template's deterministic update and its reference.
 
 > **Note**: All future commits to this repository must follow the

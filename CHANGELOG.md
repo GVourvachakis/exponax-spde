@@ -53,12 +53,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   [migration guide](docs/noise_model.md). Reported by @rcgiri-physics
   in [#4](https://github.com/GVourvachakis/exponax-spde/issues/4).
 
-- `StochasticAllenCahn` now raises `ValueError` for any `order` other than 1.
-  In v0.1.0, order 2 silently ran exponential Euler, and orders 3 and 4 used
-  the ETDRK half-step coefficient for the cubic term. Reported by
-  @rcgiri-physics in [#5](https://github.com/GVourvachakis/exponax-spde/issues/5).
-  Higher-order stochastic integration is tracked in
-  [#14](https://github.com/GVourvachakis/exponax-spde/issues/14).
+- `StochasticAllenCahn` supports deterministic drift orders 1–4, with
+  default 1 and `ValueError` for unsupported values. Orders 2–4 use the
+  complete ETDRK drift stages. In v0.1.0, order 2 silently ran exponential
+  Euler, and orders 3 and 4 used a half-step coefficient for the cubic term.
+  Reported by @rcgiri-physics in [#5](https://github.com/GVourvachakis/exponax-spde/issues/5).
+  The drift option is tracked in [#31](https://github.com/GVourvachakis/exponax-spde/issues/31).
+  Genuinely higher stochastic order remains in [#14](https://github.com/GVourvachakis/exponax-spde/issues/14).
 
 ### Fixed
 

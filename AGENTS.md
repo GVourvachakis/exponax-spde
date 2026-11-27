@@ -89,8 +89,10 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
   using the same supplied increment and an independent deterministic reference.
 - Derive every Δt and N factor in reference values. Never calibrate a reference to
   observed output.
-- Use fixed PRNG keys and enough samples for a relative standard error below about 3%.
-  Justify tolerances from that standard error.
+- Use fixed PRNG keys. Size Monte Carlo runs from a pilot coefficient of variation
+  for the statistic used by the precision gate. Record the pilot and calculation
+  in the design note. Never size the sample from a Gaussian assumption. Aim for
+  relative standard error below about 3% and justify tolerances from it.
 - Couple Brownian paths for strong-convergence tests by combining fine increments into
   coarse increments with the scheme's propagation weights.
 - With `sigma=0` and taming off, the stepper must match
