@@ -1,3 +1,4 @@
+import sys
 import warnings
 
 import jax
@@ -128,3 +129,13 @@ def test_constructing_with_traced_diffusivity():
     k2_dt = (2 * np.pi) ** 2 * dt
     expected = -k2_dt * np.exp(-nu * k2_dt)
     np.testing.assert_allclose(jax.grad(loss)(nu), expected, rtol=2e-6, atol=1e-8)
+
+
+def test_warning_points_to_constructor_call():
+    with pytest.warns(NoiseRegularityWarning) as records:
+        line = sys._getframe().f_lineno + 1
+        StochasticAllenCahn(2, 1.0, 4, 0.001, noise_alpha=0)
+    (record,) = records
+    assert record.filename == __file__
+    assert record.lineno == line
+    print(f"{record.filename}:{record.lineno}")

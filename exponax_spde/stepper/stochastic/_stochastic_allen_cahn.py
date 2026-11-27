@@ -48,6 +48,7 @@ https://doi.org/10.1007/s10208-015-9247-y.
 
 from __future__ import annotations
 
+import sys
 import warnings
 from typing import Literal
 
@@ -63,6 +64,19 @@ from ...nonlin_fun import TamedPolynomialNonlinearFun
 
 class NoiseRegularityWarning(UserWarning):
     """The finite-grid noise is too rough for the classical continuum model."""
+
+
+def _warn_noise_regularity(message: str) -> None:
+    # Equinox wraps construction in a version-dependent number of frames.
+    frame = sys._getframe()
+    stacklevel = 1
+    while frame is not None:
+        package = frame.f_globals.get("__name__", "").partition(".")[0]
+        if package not in {"equinox", "exponax_spde"}:
+            break
+        stacklevel += 1
+        frame = frame.f_back
+    warnings.warn(message, NoiseRegularityWarning, stacklevel=stacklevel)
 
 
 def phi1(z: Array) -> Array:
@@ -334,7 +348,7 @@ class StochasticAllenCahn(BaseStepper):
                     "is too rough for the classical continuum pointwise product. "
                     "This stepper simulates the finite-grid collocation model (#8)."
                 )
-            warnings.warn(message, NoiseRegularityWarning, stacklevel=2)
+            _warn_noise_regularity(message)
 
         # ── Store all fields before super().__init__ ───────────────────
         # BaseStepper.__init__ immediately calls _build_linear_operator
