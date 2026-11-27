@@ -18,6 +18,7 @@ TamedPolynomialNonlinearFun
 Stochastic utilities (also available as ``spde.<fn>``):
     stochastic_rollout
     stochastic_ensemble_rollout
+    stochastic_structure_factor
     structure_factor
     richardson_weak_extrapolation
     strang_split_step
@@ -48,6 +49,7 @@ from ._stochastic_utils import (
     richardson_weak_extrapolation,
     stochastic_ensemble_rollout,
     stochastic_rollout,
+    stochastic_structure_factor,
     strang_split_step,
     structure_factor,
 )
@@ -77,6 +79,7 @@ __all__ = [
     "stack_sub_trajectories",
     "stochastic_ensemble_rollout",
     "stochastic_rollout",
+    "stochastic_structure_factor",
     "strang_split_step",
     "structure_factor",
     "build_ic_set",

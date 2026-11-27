@@ -43,7 +43,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from exponax_spde._spectral import fft, get_fourier_coefficients, ifft
+from exponax_spde import stochastic_structure_factor
+from exponax_spde._spectral import fft, ifft
 from exponax_spde._stochastic_utils import (
     stochastic_ensemble_rollout,
     stochastic_rollout,
@@ -258,6 +259,25 @@ class TestDeterministicLimit:
 # ============================================================================
 
 
+@pytest.mark.parametrize(
+    ("d", "n", "m", "t"), [(1, 32, 16, 200), (2, 16, 8, 100)], ids=["1d", "2d"]
+)
+@pytest.mark.parametrize("noise_type", ["additive", "multiplicative"])
+def test_streamed_structure_factor_matches_ensemble(d, n, m, t, noise_type):
+    params = dict(PARAMS_1D, num_spatial_dims=d, num_points=n)
+    stepper = _make_stochastic(params, noise_type=noise_type)
+    u0 = _random_ic(params)
+    burn_in_fraction = 0.337
+    ensemble = jax.jit(stochastic_ensemble_rollout(stepper, t, m, include_init=False))(
+        u0, KEY0
+    )
+    expected = structure_factor(ensemble, burn_in_fraction=burn_in_fraction)
+    streamed = jax.jit(
+        stochastic_structure_factor(stepper, t, m, burn_in_fraction=burn_in_fraction)
+    )(u0, KEY0)
+    np.testing.assert_allclose(streamed, expected, rtol=1e-12, atol=0)
+
+
 class TestLinearSPDEInvariantMeasure:
     """λ=0 → SHE  ∂ₜu = νΔu + σξ  with exact invariant measure C_k."""
 
@@ -280,12 +300,13 @@ class TestLinearSPDEInvariantMeasure:
             order=1,
         )
         u0 = jnp.zeros((1, N))
-        ens_fn = jax.jit(
-            stochastic_ensemble_rollout(stepper, T_burn + T_stat, M, include_init=False)
+        total_steps = T_burn + T_stat
+        spectrum = jax.jit(
+            stochastic_structure_factor(
+                stepper, total_steps, M, burn_in_fraction=T_burn / total_steps
+            )
         )
-        ensemble = ens_fn(u0, jax.random.PRNGKey(7))  # (M, T_total, 1, N)
-        tail = ensemble[:, T_burn:, :, :]  # (M, T_stat,  1, N)
-        S_k = structure_factor(tail, burn_in_fraction=0.0)[0, :]  # (N//2+1,)
+        S_k = spectrum(u0, jax.random.PRNGKey(7))[0, :]  # (N//2+1,)
 
         C_k, j = _build_theoretical_Ck_1d(N, L, diffusivity, sigma, alpha, dt)
         k_mask = j > 0
@@ -298,15 +319,12 @@ class TestLinearSPDEInvariantMeasure:
     def test_invariant_measure_2d(self):
         """S(kx,ky) → C_k in 2-D for below-dealiasing-cutoff modes.
 
-        Uses incremental accumulation to avoid allocating (M, T, 1, N, N)
-        which is ~6 GB in float64 for M=192, T=4000, N=32.
-        Instead we run M_chunk trajectories at a time and accumulate the
-        running mean of |c_k|² over the stationary window.
+        Stream the stationary spectrum within each chunk. Keep the chunk
+        split and key sequence used for the original trajectory calculation.
         """
         N, L, diffusivity, sigma, alpha = 32, 1.0, 0.1, 0.5, 1.5
         dt, T_burn, T_stat = 1e-3, 1000, 2000
         M_total = 96  # total Monte-Carlo trajectories
-        # process this many at a time (memory budget ≈ 200 MB)
         M_chunk = 16
         dealiasing_fraction = 2.0 / 3.0
 
@@ -324,39 +342,22 @@ class TestLinearSPDEInvariantMeasure:
         )
         u0 = jnp.zeros((1, N, N))
 
-        # JIT once for the chunk rollout
-        chunk_rollout = jax.jit(
-            stochastic_ensemble_rollout(
-                stepper, T_burn + T_stat, M_chunk, include_init=False
+        total_steps = T_burn + T_stat
+        chunk_spectrum = jax.jit(
+            stochastic_structure_factor(
+                stepper, total_steps, M_chunk, burn_in_fraction=T_burn / total_steps
             )
         )
 
         accum_S = jnp.zeros((N, N // 2 + 1))
-        count = 0
         master_key = jax.random.PRNGKey(13)
 
         n_chunks = M_total // M_chunk
         for _ in range(n_chunks):
             master_key, chunk_key = jax.random.split(master_key)
-            # (M_chunk, T_burn+T_stat, 1, N, N)
-            ens = chunk_rollout(u0, chunk_key)
-            # Discard burn-in, flatten over ensemble × time
-            # (M_chunk, T_stat, 1, N, N)
-            tail = ens[:, T_burn:, :, :, :]
-            # (M_chunk*T_stat, 1, N, N)
-            flat = tail.reshape((-1, 1, N, N))
-            # |c_k|² for each snapshot
-            coeffs = jax.vmap(
-                lambda u: get_fourier_coefficients(
-                    u, scaling_compensation_mode="coef_extraction", round=None
-                )
-                # (M_chunk*T_stat, 1, N, N//2+1)
-            )(flat)
-            accum_S = accum_S + jnp.sum(jnp.abs(coeffs[:, 0]) ** 2, axis=0)
-            count += flat.shape[0]
-            del ens, tail, flat, coeffs  # release memory before next chunk
+            accum_S = accum_S + chunk_spectrum(u0, chunk_key)[0]
 
-        S_k = accum_S / count  # (N, N//2+1)
+        S_k = accum_S / n_chunks  # (N, N//2+1)
 
         # Theoretical C_k
         C_k, k_sq_2d, _, j_x, j_y = _build_theoretical_Ck_2d(
@@ -466,12 +467,12 @@ class TestStructureFactorGridConvergence:
                 noise_alpha=alpha,
                 order=1,
             )
-            ens = jax.jit(stochastic_ensemble_rollout(ste, T, M, include_init=False))(
+            S_k = jax.jit(stochastic_structure_factor(ste, T, M))(
                 jnp.zeros((1, N)), jax.random.PRNGKey(11)
             )
             # Divide by N: coefficient-space variance ∝ N for EEM,
             # so S_k/N converges to a grid-independent continuum quantity.
-            S_ks[N] = structure_factor(ens)[0, :] / N
+            S_ks[N] = S_k[0, :] / N
 
         # Restrict to k=1..cutoff (modes alive in both grids)
         cutoff = int(Ns[0] * dealiasing_fraction / 2)  # 21 for N=64
@@ -515,10 +516,8 @@ class TestStructureFactorGridConvergence:
                 noise_alpha=alpha,
                 order=1,
             )
-            ens = jax.jit(stochastic_ensemble_rollout(ste, T, M, include_init=False))(
-                jnp.zeros((1, N, N)), jax.random.PRNGKey(15)
-            )
-            S_k = structure_factor(ens)[0, :, :]  # (N, N//2+1)
+            spectrum = jax.jit(stochastic_structure_factor(ste, T, M))
+            S_k = spectrum(jnp.zeros((1, N, N)), jax.random.PRNGKey(15))[0]
 
             # Below-cutoff non-DC mask (same physical modes for both grids)
             j_x = jnp.fft.fftfreq(N, 1.0 / N)
