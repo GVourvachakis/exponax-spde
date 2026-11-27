@@ -28,8 +28,8 @@ richardson_weak_extrapolation(stepper_coarse, stepper_fine, u0, *, ...)
 strang_split_step(spectral_stepper, ssa_step_fn, u, ssa_state, dt, key, *)
     Scaffold for operator-split hybrid SSA / spectral stepping
     (Strang splitting: half-SSA → full-spectral → half-SSA).
-    ``ssa_step_fn`` is a user-supplied Python callable invoked via
-    ``jax.pure_callback``; it is NOT JIT-compiled.
+    The SSA half-steps are host-side Python calls. The split time loop
+    cannot be JIT-compiled and each accelerator step returns to the host.
 
 NOTE on what is NOT provided
 -----------------------------
@@ -43,6 +43,7 @@ NOTE on what is NOT provided
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 
 import equinox as eqx
@@ -383,7 +384,7 @@ def strang_split_step(
     dt: float,
     key: PRNGKeyArray,
     *,
-    domain_extent: float,
+    domain_extent: float | None = None,
     num_points: int,
     mollifier_cutoff: float = 0.5,
 ) -> tuple[Float[Array, "1 * N"], dict]:
@@ -393,9 +394,10 @@ def strang_split_step(
     half-SSA(Δt/2), which is second-order accurate in Δt for operator
     splitting (Strang, 1968).
 
-    This is a scaffold — ``ssa_step_fn`` is a user-supplied Python
-    callable and is NOT JIT-compiled.  The spectral step is pure JAX
-    and benefits from JIT if called inside a compiled context.
+    The SSA half-steps call Python on the host, so the split time loop
+    cannot be JIT-compiled. On accelerators each split step round-trips
+    to the host for SSA and sends the resulting increments to the device.
+    The spectral step can be compiled separately.
 
     **Arguments:**
 
@@ -407,12 +409,14 @@ def strang_split_step(
         Must update the SSA compartment counts and return the updated
         state dict including a ``"delta_concentration"`` field
         (numpy array of shape ``(1, *N)``) representing the concentration
-        change to inject into the PDE field.
+        change to inject into the PDE field. A missing key or a shape
+        different from ``u.shape`` raises ``ValueError``.
     - `u`: Current PDE field, shape ``(1, *N)``.
     - `ssa_state`: Current SSA state dictionary (Python-level, not JAX).
     - `dt`: Full time step; the SSA steps use ``dt/2`` each.
     - `key`: PRNGKey for the spectral noise increment.
-    - `domain_extent`: Domain side-length L (used for normalisation).
+    - `domain_extent`: Deprecated and ignored. Passing a domain length
+        emits ``DeprecationWarning``. Removal is planned for v0.3.0.
     - `num_points`: Grid points N per dimension.
     - `mollifier_cutoff`: Fraction of Fourier modes retained by the
         band-limited mollifier that converts discrete SSA outcomes to a
@@ -447,28 +451,40 @@ def strang_split_step(
         2340-2361. https://doi.org/10.1021/j100540a008
         (Stochastic simulation algorithm.)
     """
+    if domain_extent is not None:
+        warnings.warn(
+            "domain_extent is ignored and will be removed in v0.3.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     num_spatial_dims = u.ndim - 1
     spatial_axes = tuple(range(-num_spatial_dims, 0))
-    N_shape = (num_points,) * num_spatial_dims
+    grid_shape = (num_points,) * num_spatial_dims
+    max_k = int(mollifier_cutoff * (num_points // 2))
+    indices = jnp.arange(num_points)
+    keep_full = jnp.minimum(indices, num_points - indices) <= max_k
+    mask = indices[: num_points // 2 + 1] <= max_k
+    for axis in range(num_spatial_dims - 1):
+        broadcast_shape = [1] * num_spatial_dims
+        broadcast_shape[axis] = num_points
+        mask = mask & keep_full.reshape(broadcast_shape)
 
-    def _mollify(delta: Float[Array, "1 * N"]) -> Float[Array, "1 * N"]:
-        """Band-limit a physical-space perturbation with a sharp Fourier cut."""
+    def _mollify(state: dict) -> Float[Array, "1 * N"]:
+        """Validate and band-limit the half-step concentration increment."""
+        if "delta_concentration" not in state:
+            raise ValueError('SSA half-step must return "delta_concentration".')
+        delta = jnp.asarray(state["delta_concentration"])
+        if delta.shape != u.shape:
+            raise ValueError(
+                f"delta_concentration must have shape {u.shape}, got {delta.shape}."
+            )
         delta_hat = jnp.fft.rfftn(delta, axes=spatial_axes)
-        rfft_n = num_points // 2 + 1
-        max_k = int(mollifier_cutoff * (num_points // 2))
-        mask_1d = jnp.arange(rfft_n) <= max_k
-        if num_spatial_dims == 1:
-            mask = mask_1d[jnp.newaxis, :]
-        else:  # 2D
-            mask_full = jnp.arange(num_points) <= max_k
-            mask_full = mask_full[:, jnp.newaxis] & mask_1d[jnp.newaxis, :]
-            mask = mask_full[jnp.newaxis, :]
-        return jnp.fft.irfftn(delta_hat * mask, s=N_shape, axes=spatial_axes).real
+        return jnp.fft.irfftn(delta_hat * mask, s=grid_shape, axes=spatial_axes).real
 
     # ── Half SSA step ────────────────────────────────────────────────
     ssa_state_mid = ssa_step_fn(ssa_state, dt / 2.0)
-    delta_mid = jnp.array(ssa_state_mid.get("delta_concentration", 0.0))
-    u = u + _mollify(delta_mid)
+    u = u + _mollify(ssa_state_mid)
 
     # ── Full spectral step ───────────────────────────────────────────
     key, subkey = jax.random.split(key)
@@ -476,7 +492,6 @@ def strang_split_step(
 
     # ── Half SSA step ────────────────────────────────────────────────
     ssa_state_new = ssa_step_fn(ssa_state_mid, dt / 2.0)
-    delta_end = jnp.array(ssa_state_new.get("delta_concentration", 0.0))
-    u = u + _mollify(delta_end)
+    u = u + _mollify(ssa_state_new)
 
     return u, ssa_state_new
