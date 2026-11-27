@@ -1,0 +1,24 @@
+name: Slow tests
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/slow.yml"
+permissions:
+  contents: read
+jobs:
+  slow:
+    runs-on: ubuntu-latest
+    env:
+      JAX_ENABLE_X64: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: python -m pip install -e ".[test]" "exponax==0.2.1"
+      - run: python -m pytest -m slow -q --durations=10

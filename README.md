@@ -30,25 +30,25 @@ infrastructure, ensemble utilities, and hybrid coupling tools that deterministic
 ## Installation
 
 ```bash
-pip install exponax-spde
+pip install "exponax-spde @ git+https://github.com/GVourvachakis/exponax-spde"
 ```
 
-For development (includes test and notebook dependencies):
+For development, use Poetry 2.4.2 with the committed dependency lock:
 
 ```bash
 git clone https://github.com/GVourvachakis/exponax-spde.git
 cd exponax-spde
-pip install -e ".[dev,test]"
+poetry install -E dev -E test -E docs
 ```
 
-Requires Python 3.10+, JAX 0.4.13+.
+Requires Python 3.10+, JAX 0.6.2+, and exponax >=0.2.0,<0.3.
 
 👉 [JAX install guide](https://jax.readthedocs.io/en/latest/installation.html)
 
 For 3-D volume rendering in the validation notebook (optional):
 
 ```bash
-pip install exponax-spde[vape4d]
+pip install "exponax-spde[vape4d] @ git+https://github.com/GVourvachakis/exponax-spde"
 ```
 
 ---

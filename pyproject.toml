@@ -7,7 +7,7 @@ name = "exponax-spde"
 version = "0.1.0"
 description = "Stochastic PDE solvers built on top of Exponax."
 readme = "README.md"
-requires-python = "~=3.10"
+requires-python = ">=3.10"
 authors = [{ name = "Georgios Vourvachakis" }]
 license = { file = "LICENSE.txt" }
 keywords = [
@@ -30,8 +30,8 @@ keywords = [
 ]
 
 dependencies = [
-    "exponax>=0.2.0",
-    "jax>=0.4.13",
+    "exponax>=0.2.0,<0.3",
+    "jax>=0.6.2",
     "jaxtyping>=0.2.20",
     "typing_extensions>=4.5.0",
     "equinox>=0.11.3",
@@ -46,9 +46,14 @@ changelog = "https://github.com/GVourvachakis/exponax-spde/releases"
 [tool.poetry]
 packages = [{ include = "exponax_spde" }]
 
+[tool.poetry.dependencies]
+# Commitizen supports Python 3 in the development lock.
+python = ">=3.10,<4.0"
+
 [project.optional-dependencies]
 dev = [
     "ipykernel",
+    "nbstripout",
     "pre-commit>=3.7.0",
     "commitizen>=3.29.0", # CLI commit helper
 ]
@@ -108,6 +113,8 @@ exclude_lines = [
 ]
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}", "scratch"]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [dependency-groups]
