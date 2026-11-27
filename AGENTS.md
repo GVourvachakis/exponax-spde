@@ -70,8 +70,19 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
 
 ## Numerical-correctness rules (mandatory)
 
+- Keep physverify in the test extra (`>=0.9.1,<0.10`). Run solvers under JIT in
+  float64 and pass only host NumPy arrays of final errors or statistics to physverify.
+  Keep physverify out of runtime and traced JAX code.
+- Derive verification references from the physics and keep standard-error-based checks
+  primary. Verification tests use only the public `exponax_spde` API and installed
+  `exponax`, so they are independent of the vendored modules (#3).
+
 - Back every variance, scaling or convergence-order claim with a statistical test
   against an analytical reference. Include the derivation in the test docstring.
+- Use two-sided acceptance bands for convergence orders. For Monte Carlo slopes,
+  require the paired-bootstrap confidence interval to lie inside the prescribed band.
+- Test changes to stochastic update formulas against an independent NumPy oracle
+  using the same supplied increment and an independent deterministic reference.
 - Derive every Δt and N factor in reference values. Never calibrate a reference to
   observed output.
 - Use fixed PRNG keys and enough samples for a relative standard error below about 3%.

@@ -1,6 +1,6 @@
-# Additive noise and migration from v0.1.0
+# Noise model and migration from v0.1.0
 
-`StochasticAllenCahn` uses additive noise with physical amplitude $\sigma$
+`StochasticAllenCahn` uses noise with physical amplitude $\sigma$
 and spectral covariance $q_k=(1+|k|_{\rm phys}^2)^{-\alpha}$ on a periodic
 box of side $\ell$. Write $h=\Delta t$, $P=N^d$, $a=dx^d=(\ell/N)^d$,
 and $L_k=-\nu|k|_{\rm phys}^2+\lambda$.
@@ -20,7 +20,7 @@ stored mode. Boundary planes obey Hermitian symmetry. A mode whose indices
 are all DC or Nyquist is purely real. The other modes have real and imaginary
 variances $P/2$.
 
-## Variance and the meaning of σ
+## Additive variance and the meaning of σ
 
 The additive step draws one real white field and uses the increment
 $$
@@ -58,24 +58,26 @@ $\sigma^2t/\ell^d$ from zero, so the stationary comparison excludes DC.
 ## Experimental increment API
 
 - `sample_increment(key)` returns the additive convolution in raw rFFT
-  units, including $\sigma$.
+  units, including $\sigma$, or a σ-free multiplicative Wiener increment.
 - `step_with_increment(u_hat, increment)` applies the deterministic step
-  and adds the supplied Fourier increment. It validates the increment
-  shape and takes no key.
+  and applies the supplied increment according to the noise model. It
+  validates the increment shape and takes no key.
 - `fine.coarsen_increments(increments)` combines $r\ge2$ consecutive fine
   increments along the leading axis. With $E_h=e^{hL_k}$, it applies
-  $\sum_{j=0}^{r-1} E_h^{r-1-j}\widehat O_j$ for the step of length $rh$.
-  Keep geometry, coefficients, dtype and covariance the same between
-  the fine and coarse steppers.
+  $\sum_{j=0}^{r-1} E_h^{r-1-j}\widehat O_j$ to additive increments.
+  It sums the multiplicative Wiener increments before applying the
+  collocation product and optional Milstein term. Match geometry,
+  coefficients, dtype and covariance between the fine and coarse steppers.
 
-The methods support JIT and batching over paths. JIT a closure over the
-stepper, such as `jax.jit(lambda x: fine.coarsen_increments(x))`. Sample the fine
-increments once and coarsen the same draws for the coarse path. Two fine
-linear steps and the corresponding coarse step agree to round-off. For
-nonlinear drift this coupling preserves the correct marginal noise
-while exposing the time-discretisation error.
+The methods support JIT and batching over paths. Use `equinox.filter_jit`
+or JIT a closure such as `jax.jit(lambda x: fine.coarsen_increments(x))`.
+Sample the fine draws once and coarsen them for the coarse path to share
+one Brownian path. With additive noise and linear drift, fine and coarse
+steps agree to round-off. With nonlinear drift or multiplicative noise,
+coupling preserves the correct marginal noise and exposes the strong
+time-discretisation error. [Higham (2001)](https://doi.org/10.1137/S0036144500378302)
 
-## Migration
+## Additive migration
 
 The legacy draw counted $h$ both in its base variance and through $F_h$.
 It also multiplied circular complex samples by $R_k$. The real inverse
@@ -97,9 +99,96 @@ examples received too much legacy noise, for example the 2-D $N=256$
 and 3-D $N=32$ validation figures with $h=0.0005$. Keep physical $\sigma$
 fixed in quantitative comparisons.
 
-The multiplicative update still uses the legacy discretisation. Its
-normalisation, collocation product, Milstein correction and increment API
-are pending #4b. Continuum regularity warnings are tracked separately.
+## Multiplicative noise and Milstein
+
+The plain Wiener draw contains no $\sigma$:
+$$
+\Delta\widehat W_k=\sqrt{q_k h/a}\;\mathrm{rfft}(\xi)_k,
+\qquad
+v_W=E[\Delta W(x)^2]=\frac{h}{aP}\sum_{\rm rfft} w_k q_k.
+$$
+The final-axis weights account for all frequencies, including the odd and
+even grid cases. Translation invariance makes $v_W$ the same at every
+grid point.
+
+Write $D_h(\widehat u)$ for the order-1 deterministic step. Multiply the
+noise and the step-start state at the grid points (collocation). The drift
+uses its usual dealiasing mask. The step is
+$$
+\widehat u_{n+1}
+=D_h(\widehat u_n)
++ E_h\,\mathcal F\!\left[\sigma u_n\Delta W
+   + \tfrac12\sigma^2 u_n(\Delta W^2-v_W)\right],
+$$
+with the quadratic term included only when `use_milstein=True`. The
+propagated Euler kick follows the stochastic exponential Euler form.
+[Lord & Tambue (2013)](https://doi.org/10.1093/imanum/drr059)
+
+Milstein uses the commutative correction for the linear diffusion
+$G(u)=\sigma u$. The centred square has zero expectation and variance
+$2v_W^2$. Euler and quadratic kicks have zero cross covariance by
+Gaussian symmetry. At $L=0$ the conditional variance is
+$u_n^2(\sigma^2v_W+\tfrac12\sigma^4v_W^2)$ with Milstein and
+$u_n^2\sigma^2v_W$ with Euler–Maruyama. Milstein requires
+$\sum_k q_k<\infty$ in the continuum, equivalently $\alpha>d/2$.
+Enabling it for $\alpha\le d/2$ raises `ValueError`.
+[Jentzen & Röckner (2015)](https://doi.org/10.1007/s10208-015-9247-y)
+
+### Verification by geometric Brownian motion
+
+On the unit box, set $\lambda=0$, start from a uniform field and suppress
+nonconstant noise modes with $\alpha=20$. In the DC-only limit the field
+obeys $du=\sigma u\,dW$ with exact endpoint
+$u(T)=u_0\exp(\sigma W_T-\sigma^2 T/2)$. Sum the same fine increments
+into coarse steps. The strong RMS orders are $1/2$ for Euler–Maruyama
+and $1$ for Milstein. The tests use paired bootstrap bounds as the
+primary check and physverify as a host-side check on final RMS errors.
+[Kloeden & Platen (1992)](https://doi.org/10.1007/978-3-662-12616-5)
+
+### When Milstein improves on Euler–Maruyama
+
+For smooth coefficients and test functions under the usual moment and
+regularity assumptions, Euler–Maruyama and Milstein both have weak order
+one. The Milstein correction increases the strong order from one half to
+one in the commutative setting. [Kloeden & Platen (1992)](https://doi.org/10.1007/978-3-662-12616-5)
+
+Resolving that gain requires commutative noise, which the diagonal
+collocation diffusion supplies, and small $\sigma^2 v_W$ per step. The
+drift error must be small enough to expose the stochastic error, and
+the noise must be sufficiently smooth relative to the stiffness of
+the resolved modes. [Jentzen & Röckner (2015)](https://doi.org/10.1007/s10208-015-9247-y),
+[Lord & Tambue (2013)](https://doi.org/10.1093/imanum/drr059)
+
+Weak errors and wall times describe the chosen observable and workload.
+They cannot rank the schemes by strong accuracy. Compare terminal path
+errors using the same Brownian increments across resolutions. The v0.1.0
+comparisons used independent seeds and the former Milstein term.
+
+### Level-difference estimates of strong order
+
+For the fixed-grid SPDE test, the Milstein fit against a finite T/1024
+reference was 1.11. A leading error of $C(h-h_{\rm ref})$ predicts 1.12
+on those levels because its local log-log slope is $h/(h-h_{\rm ref})$.
+The primary estimator now fits the RMS of $X_h-X_{h/2}$ against $h$,
+using the same Brownian path at both levels and resampling whole paths
+for the confidence interval. The finite-reference fit remains a
+secondary diagnostic. [Giles (2008)](https://doi.org/10.1287/opre.1070.0496)
+· [Higham (2001)](https://doi.org/10.1137/S0036144500378302)
+
+### Multiplicative migration
+
+The v0.1.0 draw counted time twice, used reconstruction scaling and
+applied the linear-convolution factor to the noise before multiplication.
+It also projected the state and stochastic product. Its Milstein term
+subtracted a field in place of $v_W$ and carried an extra time-step
+factor. The variance change depends on the grid, colour, step size and
+state. Keep physical $\sigma$ fixed in quantitative work. For an
+illustration, match the conditional one-step variance at its initial
+field if the legacy noise level matters. Such a match preserves one
+aggregate variance and can leave different modal power and mean.
+
+Continuum regularity warnings and updated validation figures have
+separate issues.
 [Noise correction #4](https://github.com/GVourvachakis/exponax-spde/issues/4),
 [regularity #8](https://github.com/GVourvachakis/exponax-spde/issues/8),
 [figure regeneration #17](https://github.com/GVourvachakis/exponax-spde/issues/17)

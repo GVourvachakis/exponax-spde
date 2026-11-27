@@ -82,9 +82,10 @@ def test_nonlinear_increment_replay():
     print("nonlinear replay: exact over 4 steps")
 
 
-def test_increment_api_validation():
+@pytest.mark.parametrize("noise_type", ["additive", "multiplicative"])
+def test_increment_api_validation(noise_type):
     """The raw rFFT shape and two-step minimum are part of the API."""
-    stepper = StochasticAllenCahn(1, 1.0, 16, 0.002)
+    stepper = StochasticAllenCahn(1, 1.0, 16, 0.002, noise_type=noise_type)
     key = jax.random.PRNGKey(43)
     increment = stepper.sample_increment(key)
     with pytest.raises(ValueError, match="increment shape"):
@@ -93,12 +94,4 @@ def test_increment_api_validation():
         stepper.coarsen_increments(increment[None])
     with pytest.raises(ValueError, match="shape"):
         stepper.coarsen_increments(jnp.stack((increment[:, :-1],) * 2))
-
-    legacy = StochasticAllenCahn(1, 1.0, 16, 0.002, noise_type="multiplicative")
-    with pytest.raises(NotImplementedError, match="#4b"):
-        legacy.sample_increment(key)
-    with pytest.raises(NotImplementedError, match="#4b"):
-        legacy.step_with_increment(increment, increment)
-    with pytest.raises(NotImplementedError, match="#4b"):
-        legacy.coarsen_increments(jnp.stack((increment,) * 2))
-    print("shape and #4b guards: passed")
+    print("increment shape and minimum length guards: passed")
