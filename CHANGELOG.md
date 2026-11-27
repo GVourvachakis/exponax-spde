@@ -7,6 +7,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Ensemble utilities accept `batch_size`, and `stochastic_rollout`
+  accepts a save `stride`.
+  [#21](https://github.com/GVourvachakis/exponax-spde/issues/21)
+
 - Experimental `sample_increment`, `step_with_increment` and
   `coarsen_increments` methods support additive and multiplicative increment
   reuse and coupled paths.
