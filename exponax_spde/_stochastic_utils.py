@@ -487,14 +487,23 @@ def strang_split_step(
     field are suppressed by a sharp Fourier truncation mollifier.  A
     smoother Gaussian window is straightforward to substitute.
 
+    The papers below provide context for PDE–compartment coupling and the
+    two-regime method. This scaffold is limited to Strang composition and
+    Fourier mollification. The complete algorithms from both papers are
+    outside its scope.
+
     **References:**
 
     - Harrison, J. U., & Yates, C. A. (2016).
-        The two-regime method for optimizing stochastic
-        reaction-diffusion simulations.
-        *Journal of The Royal Society Interface*,
-        9(70), 859-868. https://doi.org/10.1098/rsif.2011.0574
-        (Strang-split PDE/SSA coupling with band-limited mollifier.)
+        A hybrid algorithm for coupling partial differential equation and
+        compartment-based dynamics.
+        *Journal of the Royal Society Interface*, 13(122), 20160335.
+        https://doi.org/10.1098/rsif.2016.0335 (PDE–compartment coupling.)
+
+    - Flegg, M. B., Chapman, S. J., & Erban, R. (2012).
+        The two-regime method for optimizing stochastic reaction–diffusion
+        simulations. *Journal of the Royal Society Interface*, 9(70), 859–868.
+        https://doi.org/10.1098/rsif.2011.0574 (The two-regime method.)
 
     - Strang, G. (1968). On the construction and comparison of difference
         schemes. *SIAM Journal on Numerical Analysis*, 5(3), 506-517.

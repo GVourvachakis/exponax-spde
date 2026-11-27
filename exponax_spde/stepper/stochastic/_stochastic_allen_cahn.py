@@ -39,7 +39,11 @@ Draw a plain Wiener increment ΔŴ_k = sqrt(q_k Δt / dx^d) · FFT(ξ)_k.
 Multiply by σu at the step-start grid points and propagate the FFT of
 the kick by E_k. The optional Milstein kick is
 ½σ²u(ΔW² − v_W), with scalar v_W = Δt mean_full(q) / dx^d, and uses the
-same propagator. The stochastic product uses collocation.
+same propagator. The stochastic product uses collocation. The propagation
+follows the stochastic exponential Euler approach of Lord & Tambue (2013),
+https://doi.org/10.1093/imanum/drr059. For the commutative SPDE Milstein
+correction, see Jentzen & Röckner (2015),
+https://doi.org/10.1007/s10208-015-9247-y.
 """
 
 from __future__ import annotations
@@ -228,8 +232,8 @@ class StochasticAllenCahn(BaseStepper):
         of stochastic differential equations with non-globally Lipschitz
         continuous coefficients. *Memoirs of the American Mathematical
         Society*, 236(1112). https://doi.org/10.1090/memo/1112
-        (Tamed Euler-Maruyama: almost-sure boundedness and convergence
-        rates for super-linearly growing drift/diffusion coefficients.)
+        (Convergence theory for tamed SDE methods with non-globally
+        Lipschitz continuous coefficients, which motivates the taming here.)
 
     - Cox, S. M., & Matthews, P. C. (2002). Exponential time differencing
         for stiff systems. *Journal of Computational Physics*, 176(2),
@@ -244,8 +248,9 @@ class StochasticAllenCahn(BaseStepper):
     - Funaki, T. (1995). The scaling limit for a stochastic PDE and the
         separation of phases. *Probability Theory and Related Fields*,
         102(2), 221-288. https://doi.org/10.1007/BF01213390
-        (Invariant measure and sharp-interface limit of stochastic
-        Allen-Cahn; theoretical basis for the λ=0 validation tests.)
+        (Nonlinear phase separation and the sharp-interface limit of
+        stochastic Allen–Cahn. In the λ=0 tests, the reference follows from
+        the linear Ornstein–Uhlenbeck covariance in docs/noise_model.md.)
     """
 
     # ── Scalar hyperparameters ─────────────────────────────────────────
