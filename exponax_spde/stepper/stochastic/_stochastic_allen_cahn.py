@@ -3,7 +3,7 @@ Stochastic Allen-Cahn SPDE stepper.
 
 Equation (Itô):  ∂ₜu = νΔu + λ(u - u³) + σ(u) ξ(x, t)
 
-Method: Exponential Euler-Maruyama (EEM)
+Method: exponential drift with stochastic forcing
 ─────────────────────────────────────────
 The PDE is split, following the built-in ``exponax.stepper.reaction.AllenCahn``
 stepper convention, as
@@ -13,13 +13,14 @@ stepper convention, as
 
 so that L + 𝒩 = ν Δu + λu - λu³ = ν Δu + λ(u - u³).
 
-The discrete update is
+At the default order 1, the drift and stochastic update are
 
     û_k(t+Δt) = E_k û_k(t)
                 + φ₁(L_k Δt) Δt · 𝒩̂_k(u(t))   [ETD1 step]
                 + stochastic_increment_k           [EEM noise]
 
-where E_k = exp(L_k Δt) and φ₁(z) = (eᶻ - 1)/z.
+where E_k = exp(L_k Δt) and φ₁(z) = (eᶻ - 1)/z. Orders 2–4 apply the
+complete deterministic ETDRK step before the same stochastic update.
 
 Additive stochastic convolution
 ────────────────────────────────
@@ -66,7 +67,7 @@ class NoiseRegularityWarning(UserWarning):
     """The finite-grid noise is too rough for the classical continuum model."""
 
 
-def _warn_noise_regularity(message: str) -> None:
+def _warn_at_caller(message: str, category: type[Warning]) -> None:
     # Equinox wraps construction in a version-dependent number of frames.
     frame = sys._getframe()
     stacklevel = 1
@@ -76,7 +77,7 @@ def _warn_noise_regularity(message: str) -> None:
             break
         stacklevel += 1
         frame = frame.f_back
-    warnings.warn(message, NoiseRegularityWarning, stacklevel=stacklevel)
+    warnings.warn(message, category, stacklevel=stacklevel)
 
 
 def phi1(z: Array) -> Array:
@@ -97,8 +98,8 @@ def _spatial_shape(num_spatial_dims: int, num_points: int) -> tuple[int, ...]:
 class StochasticAllenCahn(BaseStepper):
     """
     Timestepper for the d-dimensional (``d ∈ {1, 2, 3}``) stochastic
-    Allen-Cahn SPDE on periodic boundary conditions, solved via the
-    Exponential Euler-Maruyama (EEM) method.
+    Allen-Cahn SPDE on periodic boundary conditions, with an exponential
+    drift integrator and additive or multiplicative stochastic forcing.
 
     In Itô form the equation reads
 
@@ -175,9 +176,13 @@ class StochasticAllenCahn(BaseStepper):
         for multiplicative noise. Enabling it requires trace-class noise
         (``noise_alpha > num_spatial_dims / 2``); the term is applied only
         to multiplicative updates. Defaults to ``False``.
-    - `order`: Must be ``1`` (exponential Euler–Maruyama, the default).
-        Other values raise ``ValueError``. Higher-order stochastic
-        exponential integrators are tracked in issue #14.
+    - `order`: Order of the exponential integrator for the drift. Supported
+        values are 1, 2, 3 and 4, with default 1 (exponential Euler).
+        Other values raise ``ValueError``. The noise treatment sets the overall
+        stochastic order. With taming enabled, higher drift orders warn
+        because taming changes the drift by O(h), limiting accuracy to
+        first order relative to the untamed model. A traced noise
+        parameter suppresses this construction-time warning.
     - `dealiasing_fraction`: The fraction of the highest wavenumbers to
         dealias in the nonlinear evaluation.  Default ``2/3`` (Orszag's
         rule); ``1/2`` is tighter for the cubic nonlinearity.
@@ -304,14 +309,8 @@ class StochasticAllenCahn(BaseStepper):
         order: int = 1,
         dealiasing_fraction: float = 2.0 / 3.0,
     ) -> None:
-        if order != 1:
-            raise ValueError(
-                "StochasticAllenCahn supports only order=1 (exponential "
-                "Euler–Maruyama). In v0.1.0, order=2 silently ran order 1 and "
-                "order>=3 integrated the nonlinearity with the ETDRK3/4 "
-                "half-step coefficient (#5). Higher-order integrators are "
-                "tracked in #14."
-            )
+        if order not in (1, 2, 3, 4):
+            raise ValueError("order must be one of 1, 2, 3 or 4.")
 
         parameters = (
             ("noise_alpha", noise_alpha),
@@ -322,6 +321,9 @@ class StochasticAllenCahn(BaseStepper):
             if not isinstance(value, jax.core.Tracer) and value < 0:
                 raise ValueError(f"{name} must be non-negative, got {value}.")
 
+        concrete_noise_parameters = not any(
+            isinstance(value, jax.core.Tracer) for _, value in parameters
+        )
         if use_milstein and noise_alpha <= num_spatial_dims / 2:
             raise ValueError(
                 "Milstein requires trace-class noise (noise_alpha > "
@@ -330,7 +332,7 @@ class StochasticAllenCahn(BaseStepper):
 
         if (
             num_spatial_dims >= 2
-            and not any(isinstance(value, jax.core.Tracer) for _, value in parameters)
+            and concrete_noise_parameters
             and sigma != 0
             and diffusivity > 0
             and noise_alpha <= num_spatial_dims / 2 - 1
@@ -348,9 +350,21 @@ class StochasticAllenCahn(BaseStepper):
                     "is too rough for the classical continuum pointwise product. "
                     "This stepper simulates the finite-grid collocation model (#8)."
                 )
-            _warn_noise_regularity(message)
+            _warn_at_caller(message, NoiseRegularityWarning)
 
         # ── Store all fields before super().__init__ ───────────────────
+        if (
+            order > 1
+            and concrete_noise_parameters
+            and not isinstance(use_taming, jax.core.Tracer)
+            and use_taming
+        ):
+            _warn_at_caller(
+                "Taming changes the drift by O(h), so accuracy stays first order "
+                "relative to the untamed model.",
+                UserWarning,
+            )
+
         # BaseStepper.__init__ immediately calls _build_linear_operator
         # and _build_nonlinear_fun, so every attribute must exist first.
         self.diffusivity = diffusivity
@@ -520,7 +534,7 @@ class StochasticAllenCahn(BaseStepper):
         u_hat: Complex[Array, "1 ... (N//2)+1"],
         increment: Complex[Array, "1 ... (N//2)+1"],
     ) -> Complex[Array, "1 ... (N//2)+1"]:
-        """Apply ETDRK1 drift and the supplied increment."""
+        """Apply the selected ETDRK drift and the supplied increment."""
         expected = self._increment_amplitude.shape
         if increment.shape != expected:
             raise ValueError(
@@ -568,7 +582,7 @@ class StochasticAllenCahn(BaseStepper):
         *,
         key: PRNGKeyArray,
     ) -> Complex[Array, "1 ... (N//2)+1"]:
-        """Perform an EEM step with Fourier-space input and output.
+        """Perform a stochastic step with Fourier-space input and output.
 
         The multiplicative kick is evaluated on the physical grid. Use this
         method when the caller already holds the Fourier representation.

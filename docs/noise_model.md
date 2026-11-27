@@ -39,7 +39,7 @@ drift this gives $\sigma^2h/a$ at each grid point.
 $\sigma$ multiplies the continuum $Q$-Wiener forcing, with no time
 step or grid correction required by the caller. The kernel stores real
 $L_k$ and computes $F_h$ directly, including the large negative $L_k$
-limit $1/(2|L_k|)$. The step applies the public order-1 deterministic
+limit $1/(2|L_k|)$. The step applies the selected deterministic
 drift and adds $\widehat O$. The nonlinear dealiasing mask applies to
 the drift and the additive draw covers the full resolved grid.
 
@@ -240,6 +240,54 @@ JAX transformation.
 [Noise correction #4](https://github.com/GVourvachakis/exponax-spde/issues/4) ·
 [Regularity #8](https://github.com/GVourvachakis/exponax-spde/issues/8) ·
 [Figure regeneration #17](https://github.com/GVourvachakis/exponax-spde/issues/17)
+
+## Drift order
+
+`StochasticAllenCahn(order=k)` selects the deterministic exponential
+integrator, with $k=1,2,3,4$ and default $k=1$. Orders 2–4 evaluate the
+full ETDRK drift before adding the existing stochastic increment. With
+`sigma=0` and taming disabled, the result matches installed exponax
+Allen–Cahn with the same drift settings and order.
+
+On a smooth fixed-grid problem with small additive noise, the strong
+error scale is $C_1h^k+C_2\sigma h$, and the weak scale for smooth
+observables is $C'_1h^k+C_3\sigma^2h$. A higher-order drift can reduce
+error while the deterministic term dominates. At positive noise
+amplitude it does not raise the stochastic weak order. Keep
+Richardson's default `weak_order=1`. For multiplicative noise the
+present Euler–Maruyama and Milstein treatments retain their fixed-grid
+strong orders of one half and one, respectively, under the usual
+regularity assumptions. See
+[Milstein & Tretyakov, weak](https://doi.org/10.1137/S0036142996278967)
+and [mean-square](https://doi.org/10.1137/S1064827594278575).
+
+In the coupled fixed-grid benchmark at $N=8$, $\alpha=12$ and
+$\sigma=10^{-6}$, the order-four drift's adjacent-level RMS slopes fell
+from 4.10794 on the coarse pair to 0.99796 on the fine pair. The
+independent drift and noise error scales predict a crossover near
+$h=0.0287$. This is a finite-grid example with smooth noise.
+
+Taming replaces the cubic term $\mathcal{N}$ by
+$\mathcal{N}/(1+h|\mathcal{N}|)$ at each stage. This changes the drift
+at $O(h)$, which limits accuracy to first order relative to the untamed
+equation. Construction warns when a higher drift order and taming are
+enabled with concrete parameters.
+
+The increment API and its coarsening formulas are independent of `order`.
+Each additional drift stage adds one forward and one inverse FFT.
+
+| Drift order | FFTs per additive step | FFTs per multiplicative step |
+| ---: | ---: | ---: |
+| 1 | 5 | 8 |
+| 2 | 7 | 10 |
+| 3 | 9 | 12 |
+| 4 | 11 | 14 |
+
+These counts are for physical-space steps with a sampled increment.
+The multiplicative counts apply with and without Milstein. Fourier-space
+entry points take two fewer transforms. Stochastic stage integrals for
+genuinely higher stochastic order are tracked in
+[#14](https://github.com/GVourvachakis/exponax-spde/issues/14).
 
 ## Weak extrapolation
 
