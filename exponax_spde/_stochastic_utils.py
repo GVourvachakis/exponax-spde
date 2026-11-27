@@ -62,6 +62,7 @@ def stochastic_rollout(
     num_steps: int,
     *,
     include_init: bool = True,
+    stride: int = 1,
 ) -> Callable[[Float[Array, "1 * N"], PRNGKeyArray], Float[Array, "T 1 *N"]]:
     """Return a function that rolls a stochastic stepper forward.
 
@@ -69,8 +70,11 @@ def stochastic_rollout(
 
         trajectory = rollout_fn(u_init, key)
 
-    where ``trajectory`` has shape ``(T+1, 1, *N)`` if
-    ``include_init=True`` else ``(T, 1, *N)``.
+    The trajectory contains steps ``stride, 2*stride, ...`` up to
+    ``num_steps``. It contains ``num_steps // stride`` states, plus step zero
+    if ``include_init=True``.
+    Unlike this stochastic utility, upstream ``exponax.rollout`` has no
+    ``stride`` argument.
 
     The function is fully JIT-compatible because it uses
     ``jax.lax.scan`` internally rather than a Python-level loop.
@@ -82,6 +86,8 @@ def stochastic_rollout(
     - `num_steps`: Number of time steps T to take.
     - `include_init`: Whether to prepend the initial condition to the
         returned trajectory array.
+    - `stride`: Positive number of time steps between saved states.
+        The number of steps must be a multiple of the stride.
 
     **Example:**
 
@@ -91,6 +97,13 @@ def stochastic_rollout(
     trajectory.shape  # (501, 1, N)
     ```
     """
+
+    if stride < 1:
+        raise ValueError("stride must be positive.")
+    if num_steps % stride or (stride > 1 and stride > num_steps):
+        raise ValueError(
+            f"num_steps={num_steps} must be a positive multiple of stride={stride}."
+        )
 
     def _rollout(
         u_init: Float[Array, "1 * N"],
@@ -102,7 +115,22 @@ def stochastic_rollout(
             u_next = stepper(u, key=subkey)
             return (u_next, rng), u_next
 
-        (_, _), trajectory = jax.lax.scan(_step, (u_init, key), None, length=num_steps)
+        if stride == 1:
+            (_, _), trajectory = jax.lax.scan(
+                _step, (u_init, key), None, length=num_steps
+            )
+        else:
+
+            def block(carry, _):
+                def take_step(state, _):
+                    return _step(state, None)[0], None
+
+                carry, _ = jax.lax.scan(take_step, carry, None, length=stride)
+                return carry, carry[0]
+
+            (_, _), trajectory = jax.lax.scan(
+                block, (u_init, key), None, length=num_steps // stride
+            )
 
         if include_init:
             trajectory = jnp.concatenate([u_init[jnp.newaxis], trajectory], axis=0)
@@ -117,12 +145,24 @@ def stochastic_rollout(
 # ---------------------------------------------------------------------------
 
 
+def _map_paths(fn, inputs, batch_size):
+    if batch_size is None:
+        return jax.vmap(fn)(*inputs)
+    return jax.lax.map(lambda args: fn(*args), inputs, batch_size=batch_size)
+
+
+def _validate_batch_size(batch_size):
+    if batch_size is not None and batch_size < 1:
+        raise ValueError("batch_size must be positive.")
+
+
 def stochastic_ensemble_rollout(
     stepper: eqx.Module,
     num_steps: int,
     num_samples: int,
     *,
     include_init: bool = True,
+    batch_size: int | None = None,
 ) -> Callable[
     [Float[Array, "1 * N"], PRNGKeyArray],
     Float[Array, "M T 1 *N"],
@@ -142,6 +182,8 @@ def stochastic_ensemble_rollout(
     - `num_steps`: Number of time steps T to take.
     - `num_samples`: Number of Monte-Carlo trajectories M.
     - `include_init`: Whether to prepend the initial condition.
+    - `batch_size`: Number of paths to advance together. ``None`` maps over
+        the full sample axis. The output still contains every trajectory.
 
     **Example:**
 
@@ -151,6 +193,7 @@ def stochastic_ensemble_rollout(
     ensemble.shape  # (256, 201, 1, N)
     ```
     """
+    _validate_batch_size(batch_size)
     single_rollout = stochastic_rollout(stepper, num_steps, include_init=include_init)
 
     def _ensemble(
@@ -158,7 +201,7 @@ def stochastic_ensemble_rollout(
         key: PRNGKeyArray,
     ) -> Float[Array, "M T 1 *N"]:
         keys = jax.random.split(key, num_samples)
-        return jax.vmap(lambda k: single_rollout(u_init, k))(keys)
+        return _map_paths(lambda k: single_rollout(u_init, k), (keys,), batch_size)
 
     return _ensemble
 
@@ -225,6 +268,7 @@ def stochastic_structure_factor(
     num_samples: int,
     *,
     burn_in_fraction: float = 0.5,
+    batch_size: int | None = None,
 ) -> Callable[[Float[Array, "1 * N"], PRNGKeyArray], Float[Array, "1 * K"]]:
     """Return a rollout function that accumulates the empirical structure factor.
 
@@ -237,7 +281,10 @@ def stochastic_structure_factor(
     The scan carries the current fields and spectral sums, so peak memory
     is O(num_samples × N^d), independent of the number of steps. The step and
     sample counts must be positive, and ``0 <= burn_in_fraction < 1``.
+    Set ``batch_size`` to limit the number of paths advanced and transformed
+    together. The scan still carries one field per sample.
     """
+    _validate_batch_size(batch_size)
     if num_steps < 1 or num_samples < 1:
         raise ValueError("num_steps and num_samples must be positive.")
     if not 0.0 <= burn_in_fraction < 1.0:
@@ -255,17 +302,19 @@ def stochastic_structure_factor(
         zero_power = jnp.zeros_like(modal_power(u_init))
         fields = jnp.broadcast_to(u_init, (num_samples,) + u_init.shape)
         keys = jax.random.split(key, num_samples)
-        advance = jax.vmap(lambda u, k: stepper(u, key=k))
-        powers = jax.vmap(modal_power)
+
+        def advance(u, k):
+            return stepper(u, key=k)
 
         def step(carry, _):
             fields, keys, index, total, correction = carry
             split = jax.vmap(jax.random.split)(keys)
-            fields = advance(fields, split[:, 1])
+            fields = _map_paths(advance, (fields, split[:, 1]), batch_size)
 
             def accumulate():
                 # Compensate round-off over long averaging windows.
-                adjusted = jnp.sum(powers(fields), axis=0) - correction
+                powers = _map_paths(modal_power, (fields,), batch_size)
+                adjusted = jnp.sum(powers, axis=0) - correction
                 updated = total + adjusted
                 return updated, (updated - total) - adjusted
 
@@ -295,6 +344,7 @@ def richardson_weak_extrapolation(
     key: PRNGKeyArray,
     *,
     num_samples: int = 512,
+    batch_size: int | None = None,
 ) -> dict:
     """Boost weak order via Romberg/Richardson extrapolation.
 
@@ -321,6 +371,8 @@ def richardson_weak_extrapolation(
     - `num_steps_coarse`: Number of coarse steps T.
     - `key`: Master PRNGKey; split internally for the two ensembles.
     - `num_samples`: Monte-Carlo sample size M for both ensembles.
+    - `batch_size`: Number of paths advanced together. ``None`` uses the
+        full ensemble as one batch.
 
     **Returns:**
 
@@ -331,6 +383,7 @@ def richardson_weak_extrapolation(
     - ``"var_coarse"``, ``"var_fine"``: Ensemble variance of the final
         state.
     """
+    _validate_batch_size(batch_size)
     if num_steps_coarse == 0:
         raise IndexError("Cannot select a final state from a zero-step rollout.")
     key_c, key_f = jax.random.split(key)
@@ -348,7 +401,8 @@ def richardson_weak_extrapolation(
                 )
                 return final
 
-            return jax.vmap(one_path)(jax.random.split(ensemble_key, num_samples))
+            keys = jax.random.split(ensemble_key, num_samples)
+            return _map_paths(one_path, (keys,), batch_size)
 
         return jax.jit(ensemble)(u0, key)
 
