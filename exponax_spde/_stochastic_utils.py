@@ -71,7 +71,8 @@ def stochastic_rollout(
         trajectory = rollout_fn(u_init, key)
 
     The trajectory contains steps ``stride, 2*stride, ...`` up to
-    ``num_steps``, with step zero prepended if ``include_init=True``.
+    ``num_steps``. It contains ``num_steps // stride`` states, plus step zero
+    if ``include_init=True``.
     Unlike this stochastic utility, upstream ``exponax.rollout`` has no
     ``stride`` argument.
 
@@ -86,7 +87,7 @@ def stochastic_rollout(
     - `include_init`: Whether to prepend the initial condition to the
         returned trajectory array.
     - `stride`: Positive number of time steps between saved states.
-        The final partial block has no saved state.
+        The number of steps must be a multiple of the stride.
 
     **Example:**
 
@@ -99,6 +100,10 @@ def stochastic_rollout(
 
     if stride < 1:
         raise ValueError("stride must be positive.")
+    if num_steps % stride or (stride > 1 and stride > num_steps):
+        raise ValueError(
+            f"num_steps={num_steps} must be a positive multiple of stride={stride}."
+        )
 
     def _rollout(
         u_init: Float[Array, "1 * N"],

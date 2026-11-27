@@ -34,9 +34,9 @@ before importing JAX to allocate on demand, or limit the pool with
   fewer states, or use streamed statistics when only a spectrum is
   needed. The streamed spectrum carries current fields for all paths.
 - `stochastic_rollout(stepper, num_steps, stride=k)` saves steps
-  `k, 2*k, …`. It saves step zero if `include_init=True` and omits
-  the final partial block. The saved states use the same keys as those
-  steps in a stride-one rollout. Upstream exponax's `rollout` has no
+  `k, 2*k, …`. Choose a multiple of `k` for `num_steps`. The output contains
+  `num_steps // stride` saved states, plus step zero if `include_init=True`.
+  These states use the same keys as the corresponding stride-one states. Upstream exponax's `rollout` has no
   stride argument.
 - Use compiled scans for time loops. The Strang scaffold calls Python
   for each SSA half-step and returns to the host on accelerators.

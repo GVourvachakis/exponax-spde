@@ -17,7 +17,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.mark.parametrize("d", [1, 2])
 @pytest.mark.parametrize("scheme", ["additive", "eem", "milstein"])
 def test_float32_step_and_rollouts(d, scheme):
-    n, steps, samples = 8, 5, 7
+    n, steps, samples = 8, 6, 7
     shape = (1,) + (n,) * d
     initial = jnp.linspace(0.1, 0.5, n**d, dtype=jnp.float32).reshape(shape)
     key = jax.random.key(4)
