@@ -164,6 +164,17 @@ They cannot rank the schemes by strong accuracy. Compare terminal path
 errors using the same Brownian increments across resolutions. The v0.1.0
 comparisons used independent seeds and the former Milstein term.
 
+### Level-difference estimates of strong order
+
+For the fixed-grid SPDE test, the Milstein fit against a finite T/1024
+reference was 1.11. A leading error of $C(h-h_{\rm ref})$ predicts 1.12
+on those levels because its local log-log slope is $h/(h-h_{\rm ref})$.
+The primary estimator now fits the RMS of $X_h-X_{h/2}$ against $h$,
+using the same Brownian path at both levels and resampling whole paths
+for the confidence interval. The finite-reference fit remains a
+secondary diagnostic. [Giles (2008)](https://doi.org/10.1287/opre.1070.0496)
+· [Higham (2001)](https://doi.org/10.1137/S0036144500378302)
+
 ### Multiplicative migration
 
 The v0.1.0 draw counted time twice, used reconstruction scaling and
