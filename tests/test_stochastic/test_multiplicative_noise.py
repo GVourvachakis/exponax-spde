@@ -360,21 +360,26 @@ def test_coupled_geometric_brownian_motion_orders():
 
 @pytest.mark.slow
 def test_coupled_spde_strong_order():
-    """The grid SDE has commuting diagonal diffusion with α=2.
+    """Estimate strong order from adjacent, coupled endpoints on the fixed grid.
 
-    Milstein at T/1024 approximates the common terminal reference. Compare
-    paired RMS errors with a first-order drift, using 4096 paths, delta-method
-    RMS SEs and 95% intervals from jointly resampling the paths. Choose the
-    coarsest dyadic h satisfying ν(πN)²h≤1 and its next three refinements.
-    Here σ² v_W = σ² h ∑(1+|k|²)^(-α)/ℓ, including positive and negative
-    frequencies. For 32, 64, 128, 256 and 1024 steps the respective values
-    are 0.001955713, 0.0009778565, 0.0004889282, 0.0002444641 and 0.0000611160.
+    Each pair uses the same Brownian path. The RMS difference of levels h
+    and h/2 estimates the leading strong O(h^p) error. Use 4096 paths,
+    delta-method RMS standard errors and paired bootstrap 95% intervals.
+    The coarsest h satisfies ν(πN)²h≤1.
+
+    Print the original T/1024 reference comparison on the first four levels.
+    A leading error C(h−h_ref) against a nearby first-order reference has
+    local log-log slope h/(h−h_ref), so that fit can exceed the true order.
+
+    For 32, 64, 128, 256, 512 and 1024 steps, σ² v_W is respectively
+    0.001955713, 0.0009778565, 0.0004889282, 0.0002444641, 0.0001222321
+    and 0.0000611160, from σ² h ∑(1+|k|²)^(-α)/ℓ.
     """
     n, horizon, nu, sigma, alpha = 32, 0.25, 0.01, 0.5, 2
     samples, batch = 4096, 128
-    levels = np.array([32, 64, 128, 256])
+    levels = np.array([32, 64, 128, 256, 512, 1024])
     fine_steps = 1024
-    hs = horizon / levels
+    hs = horizon / levels[:-1]
     ratios = fine_steps // levels
     block_steps = int(ratios[0])
     k = 2 * np.pi * np.fft.fftfreq(n, d=1 / n)
@@ -410,14 +415,15 @@ def test_coupled_spde_strong_order():
 
     @jax.jit
     def sample_batch(key):
-        def block(carry, i):
-            fine_state, states = carry
+        def block(states, i):
             keys = jax.random.split(jax.random.fold_in(key, i), (block_steps, batch))
             sequential = jax.vmap(jax.vmap(fine.sample_increment))(keys)
             increments = tuple(
                 jax.vmap(jax.vmap(fine.coarsen_increments, in_axes=1))(
                     sequential.reshape(-1, int(r), *sequential.shape[1:])
                 )
+                if r > 1
+                else sequential
                 for r in ratios
             )
             states = tuple(
@@ -429,38 +435,46 @@ def test_coupled_spde_strong_order():
                 )
                 for steppers, path in zip(methods, states, strict=True)
             )
-            return (_advance(fine, fine_state, sequential), states), None
+            return states, None
 
         states = tuple(tuple(initial for _ in levels) for _ in methods)
-        (target, terminal), _ = jax.lax.scan(
-            block, (initial, states), jnp.arange(levels[0])
-        )
-        error = ifft(jnp.asarray(terminal) - target, num_spatial_dims=1, num_points=n)
-        return jnp.mean(error**2, axis=(-2, -1))
+        terminal, _ = jax.lax.scan(block, states, jnp.arange(levels[0]))
+        values = jnp.asarray(terminal)
+
+        def mean_square(delta):
+            error = ifft(delta, num_spatial_dims=1, num_points=n)
+            return jnp.mean(error**2, axis=(-2, -1))
+
+        differences = mean_square(values[:, :-1] - values[:, 1:])
+        against_reference = mean_square(values[:, :4] - values[1, -1])
+        return differences, against_reference
 
     key = jax.random.PRNGKey(262)
-    squared = np.concatenate(
-        [
-            np.asarray(sample_batch(jax.random.fold_in(key, i)))
-            for i in range(samples // batch)
-        ],
-        axis=-1,
+    batches = [
+        sample_batch(jax.random.fold_in(key, i)) for i in range(samples // batch)
+    ]
+    squared, reference_squared = (
+        np.concatenate([np.asarray(values) for values in parts], axis=-1)
+        for parts in zip(*batches, strict=True)
     )
     mse = squared.mean(axis=-1)
     rms = np.sqrt(mse)
     se = squared.std(axis=-1, ddof=1) / (2 * np.sqrt(samples) * rms)
     intervals = _paired_order_interval(hs, squared, seed=263, resamples=1000)
-    print("SPDE n_steps,h,sigma²v_W,RMS_EM,SE_EM,RMS_Milstein,SE_Milstein")
-    for i, (count, h) in enumerate(zip(levels, hs, strict=True)):
+    print("SPDE adjacent RMS: steps,h,sigma²v_W,RMS_EM,SE_EM,RMS_Milstein,SE_Milstein")
+    for i, (count, h) in enumerate(zip(levels[:-1], hs, strict=True)):
         print(
             f"{count},{h:.10g},{h * sigma2_vw_per_h:.10g},"
             f"{rms[0, i]:.9g},{se[0, i]:.9g},{rms[1, i]:.9g},{se[1, i]:.9g}"
         )
-    h_fine = horizon / fine_steps
-    print(f"{fine_steps},{h_fine:.10g},{h_fine * sigma2_vw_per_h:.10g},reference")
+    reference_rms = np.sqrt(reference_squared.mean(axis=-1))
+    estimates = np.polyfit(np.log(hs[:4]), np.log(reference_rms).T, 1)[0]
+    print(
+        f"SPDE secondary T/1024 fit: EM={estimates[0]:.6f}, Milstein={estimates[1]:.6f}"
+    )
     bands = ((0.35, 0.70), (0.80, 1.25))
     results = [
-        check_order(hs, errors, order, tol_low=0.2, tol_high=0.2)
+        check_order(hs, errors, order, tol_low=0.2, tol_high=0.2, fit_points=len(hs))
         for errors, order in zip(rms, (0.5, 1.0), strict=True)
     ]
     for method, res, (lo, hi) in zip(
