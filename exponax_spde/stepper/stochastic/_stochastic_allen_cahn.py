@@ -44,15 +44,10 @@ from typing import Literal
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from exponax import spectral
+from exponax import fft, ifft, spectral
 from jaxtyping import Array, Complex, Float, PRNGKeyArray
 
 from ..._base_stepper import BaseStepper
-from ..._spectral import (
-    build_scaling_array,
-    fft,
-    ifft,
-)
 from ...nonlin_fun import TamedPolynomialNonlinearFun
 
 
@@ -239,17 +234,16 @@ class StochasticAllenCahn(BaseStepper):
     sigma: float
     noise_alpha: float
     use_taming: bool
-    use_milstein: bool
     _dealiasing_fraction_stoch: float
 
-    # noise_type drives Python-level if/else branching inside _stochastic_step
-    # and must be static so JAX/Equinox never treats it as a traceable leaf.
+    # Choose the noise scheme before tracing.
     noise_type: str = eqx.field(static=True)
+    use_milstein: bool = eqx.field(static=True)
 
     _linear_symbol: Array
     _propagator: Array
-    _additive_amplitude: Array | None
-    _noise_std_base: Array | None
+    _increment_amplitude: Array
+    _wiener_variance: Array | None
 
     def __init__(
         self,
@@ -311,15 +305,21 @@ class StochasticAllenCahn(BaseStepper):
         k_sq = -jnp.sum(deriv_op**2, axis=0, keepdims=True).real  # (1, *wn)
         dx_d = (domain_extent / num_points) ** num_spatial_dims
 
+        q = (1.0 + k_sq) ** (-noise_alpha)
         if noise_type == "additive":
-            q = (1.0 + k_sq) ** (-noise_alpha)
             variance_factor = dt * phi1(2 * dt * self._linear_symbol)
-            self._additive_amplitude = sigma * jnp.sqrt(q * variance_factor / dx_d)
-            self._noise_std_base = None
+            self._increment_amplitude = sigma * jnp.sqrt(q * variance_factor / dx_d)
+            self._wiener_variance = None
         else:
-            filter_k = (1.0 + k_sq) ** (-noise_alpha / 2.0)
-            self._noise_std_base = filter_k * jnp.sqrt(dt / dx_d)
-            self._additive_amplitude = None
+            self._increment_amplitude = jnp.sqrt(q * dt / dx_d)
+            # Only the last rFFT axis omits negative frequencies. DC and the
+            # even-grid Nyquist plane occur once in the full spectrum.
+            weights = jnp.full(q.shape[-1], 2, dtype=q.dtype).at[0].set(1)
+            if num_points % 2 == 0:
+                weights = weights.at[-1].set(1)
+            self._wiener_variance = (
+                dt / dx_d * jnp.sum(weights * q) / num_points**num_spatial_dims
+            )
 
         # ── BaseStepper.__init__ (confirmed signature) ─────────────────
         # Signature: (num_spatial_dims, domain_extent, num_points, dt,
@@ -433,12 +433,8 @@ class StochasticAllenCahn(BaseStepper):
         ).real
 
     def sample_increment(self, key: PRNGKeyArray) -> Complex[Array, "1 ... (N//2)+1"]:
-        """Draw one additive stochastic convolution in raw rFFT units."""
-        amplitude = self._additive_amplitude
-        if amplitude is None:
-            raise NotImplementedError(
-                "sample_increment for multiplicative noise is pending #4b."
-            )
+        """Draw an additive convolution or a σ-free Wiener increment as raw rFFT."""
+        amplitude = self._increment_amplitude
         shape = (self.num_channels,) + _spatial_shape(
             self.num_spatial_dims, self.num_points
         )
@@ -451,121 +447,46 @@ class StochasticAllenCahn(BaseStepper):
         increment: Complex[Array, "1 ... (N//2)+1"],
     ) -> Complex[Array, "1 ... (N//2)+1"]:
         """Apply ETDRK1 drift and the supplied increment."""
-        amplitude = self._additive_amplitude
-        if amplitude is None:
-            raise NotImplementedError(
-                "step_with_increment for multiplicative noise is pending #4b."
-            )
-        if increment.shape != amplitude.shape:
+        expected = self._increment_amplitude.shape
+        if increment.shape != expected:
             raise ValueError(
-                f"Expected increment shape {amplitude.shape}, got {increment.shape}."
+                f"Expected increment shape {expected}, got {increment.shape}."
             )
-        return super().step_fourier(u_hat) + increment
+        drift = super().step_fourier(u_hat)
+        if self.noise_type == "additive":
+            return drift + increment
+
+        d, n = self.num_spatial_dims, self.num_points
+        u = ifft(u_hat, num_spatial_dims=d, num_points=n)
+        dw = ifft(increment, num_spatial_dims=d, num_points=n)
+        kick = self.sigma * u * dw
+        if self.use_milstein:
+            kick = kick + 0.5 * self.sigma**2 * u * (dw**2 - self._wiener_variance)
+        return drift + self._propagator * fft(kick, num_spatial_dims=d)
 
     def coarsen_increments(
         self, increments: Complex[Array, "r 1 ... (N//2)+1"]
     ) -> Complex[Array, "1 ... (N//2)+1"]:
-        """Combine r consecutive additive increments for a step r times as long.
+        """Combine r consecutive fine increments into one increment of length r·dt.
 
-        Call this on the fine stepper. Each increment is propagated for the
-        fine steps that follow it. The leading axis must have length r ≥ 2.
+        Weight additive convolutions by the propagator for the remaining fine
+        steps. Sum plain multiplicative Wiener increments before applying the
+        collocation product and optional Milstein correction at the coarse step.
         """
-        amplitude = self._additive_amplitude
-        if amplitude is None:
-            raise NotImplementedError(
-                "coarsen_increments for multiplicative noise is pending #4b."
-            )
-        if increments.shape[1:] != amplitude.shape or increments.shape[0] < 2:
+        expected = self._increment_amplitude.shape
+        if increments.shape[1:] != expected or increments.shape[0] < 2:
             raise ValueError(
-                f"Expected r >= 2 increments each of shape {amplitude.shape}, "
+                f"Expected r >= 2 increments each of shape {expected}, "
                 f"got {increments.shape}."
             )
+        if self.noise_type != "additive":
+            return jnp.sum(increments, axis=0)
 
         def propagate(total, increment):
             return self._propagator * total + increment, None
 
         total, _ = jax.lax.scan(propagate, increments[0], increments[1:])
         return total
-
-    # ── Core EEM step ──────────────────────────────────────────────────
-
-    def _stochastic_step(
-        self,
-        u_hat: Complex[Array, "1 ... (N//2)+1"],
-        *,
-        key: PRNGKeyArray,
-    ) -> Complex[Array, "1 ... (N//2)+1"]:
-        """Legacy multiplicative EEM update, pending #4b."""
-
-        # 1. ETD coefficients from the ETDRK integrator stored by BaseStepper.
-        # The legacy multiplicative coefficients are replaced in #4b.
-        exp_term = self._integrator._exp_term  # exp(L_k Δt)
-        phi_1_dt = self._integrator._coef_1  # φ₁(L_k Δt) · Δt
-
-        # 2. Deterministic exponential step.
-        drift = super().step_fourier(u_hat)
-
-        # 3. Sample independent complex Gaussians for all rfft modes.
-        key, k1, k2 = jax.random.split(key, 3)
-        z_r = jax.random.normal(k1, u_hat.shape)
-        z_i = jax.random.normal(k2, u_hat.shape)
-
-        # 4. Exact stochastic-integral variance factor (Lord et al., 2014, §10.5):
-        #
-        #        Var_k / Q_k = factor
-        #                    = (e^{2L_k Δt} - 1) / (2 L_k)   [L_k ≠ 0]
-        #                    → Δt                              [L_k → 0]
-        #
-        #    Recovered as (1 - e^{2 L_dt}) / (-2 L_k) where L_dt = L_k · Δt.
-        L_dt = jnp.log(exp_term)  # L_k · Δt
-        L_k = L_dt / self.dt
-        factor = jnp.where(
-            jnp.abs(L_k) > 1e-30,
-            (1.0 - jnp.exp(2.0 * L_dt)) / (-2.0 * L_k),
-            self.dt,
-        )
-
-        # rfft-array → coefficient-space conversion.
-        scaling = build_scaling_array(
-            self.num_spatial_dims, self.num_points, mode="reconstruction"
-        )
-
-        # _noise_std_base does NOT contain σ; σ enters exactly once
-        # below via the σ·u·dW product to avoid double-counting.
-        # Coefficient-space base variance per step: Q_base · factor.
-        noise_var_base = (self._noise_std_base**2) * factor
-        dW_hat_base = (
-            scaling * jnp.sqrt(noise_var_base) * (z_r + 1j * z_i) / jnp.sqrt(2.0)
-        )
-        nl = self._integrator._nonlinear_fun
-        u_phys = nl.ifft(nl.dealias(u_hat))
-        dW_phys_base = nl.ifft(dW_hat_base).real
-
-        # σ · u · dW  (σ applied exactly once)
-        noise_increment = nl.fft(self.sigma * u_phys * dW_phys_base)
-
-        if self.use_milstein:
-            # First-order Milstein correction for σ(u) = σu
-            # (Jentzen & Kloeden, 2009a):
-            #
-            #   ½ σ(u) σ'(u) (dW² - E[dW²]) = ½ σ² u (dW² - E[dW²])
-            #
-            # E[dW_phys_base(x)²] is recovered from the coefficient-space
-            # variance via Parseval / the scaling array.
-            var_dW_hat_base = (scaling**2) * noise_var_base
-            E_dW_phys_base_sq = nl.ifft(var_dW_hat_base).real
-            mil_phys = (
-                0.5 * self.sigma**2 * u_phys * (dW_phys_base**2 - E_dW_phys_base_sq)
-            )
-            # NOTE: the φ₁Δt prefactor treats the Milstein correction as
-            # an ETD nonlinear term.  This is non-standard (see "Known
-            # limitations" in the module docstring) but retained for
-            # backward compatibility with the existing passing tests.
-            noise_increment = noise_increment + phi_1_dt * nl.fft(mil_phys)
-
-        return drift + noise_increment
-
-    # ── Fourier-space variant ──────────────────────────────────────────
 
     def step_fourier(
         self,
@@ -591,6 +512,4 @@ class StochasticAllenCahn(BaseStepper):
         - `u_next_hat`: Fourier transform of the updated field, same
             shape as ``u_hat``.
         """
-        if self.noise_type == "additive":
-            return self.step_with_increment(u_hat, self.sample_increment(key))
-        return self._stochastic_step(u_hat, key=key)
+        return self.step_with_increment(u_hat, self.sample_increment(key))
