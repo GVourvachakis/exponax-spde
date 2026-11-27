@@ -233,14 +233,27 @@ def test_white_noise_resolution_and_step_scaling():
     assert np.all(np.abs(n_slopes - 1) <= 5 * se.sum() / np.log(n_ratio))
 
 
+def _paired_order_interval(hs, squared, *, seed, resamples=500):
+    """Fit log-RMS slopes after resampling the same paths at every level."""
+    rng = np.random.default_rng(seed)
+    log_h = np.log(hs)
+    weights = (log_h - log_h.mean()) / np.sum((log_h - log_h.mean()) ** 2)
+    n_paths = squared.shape[-1]
+    slopes = np.empty((squared.shape[0], resamples))
+    for i in range(resamples):
+        indices = rng.integers(n_paths, size=n_paths)
+        slopes[:, i] = 0.5 * np.log(squared[..., indices].mean(axis=-1)) @ weights
+    return np.quantile(slopes, (0.025, 0.975), axis=1).T
+
+
 @pytest.mark.slow
 def test_coupled_geometric_brownian_motion_orders():
     """The near-DC covariance reduces the uniform-state model to Itô GBM.
 
     Use the same W_T across schemes and levels for the exact exponential
     endpoint, with 32768 paths for RMS relative SE below 3%. Bootstrap
-    paired squared errors across all refinements and require lower 95%
-    slopes of 0.40 and 0.85 for orders 1/2 and 1.
+    paired squared errors across all refinements. Require the whole 95% slope
+    interval inside [0.40, 0.65] for Euler–Maruyama or [0.85, 1.20] for Milstein.
     """
     n, sigma, u0, alpha = 8, 0.5, 0.8, 20
     levels = np.array([16, 32, 64, 128, 256])
@@ -323,14 +336,7 @@ def test_coupled_geometric_brownian_motion_orders():
     squared = np.concatenate(errors, axis=-1)
     mse = squared.mean(axis=-1)
     relative_se = squared.std(axis=-1, ddof=1) / (2 * np.sqrt(samples) * mse)
-    rng = np.random.default_rng(225)
-    log_h = np.log(hs)
-    weights = (log_h - log_h.mean()) / np.sum((log_h - log_h.mean()) ** 2)
-    slopes = np.empty((2, 500))
-    for i in range(slopes.shape[1]):
-        indices = rng.integers(samples, size=samples)
-        slopes[:, i] = 0.5 * np.log(squared[..., indices].mean(axis=-1)) @ weights
-    lower = np.quantile(slopes, 0.025, axis=1)
+    intervals = _paired_order_interval(hs, squared, seed=225)
     amplitude = (1 + (2 * np.pi) ** 2) ** (-alpha / 2)
     print(
         f"GBM: first non-DC amplitude/DC={amplitude:.5g}, "
@@ -338,13 +344,14 @@ def test_coupled_geometric_brownian_motion_orders():
     )
     assert uniformity <= 1e-14
     assert np.all(relative_se <= 0.03)
-    for rms, se, bound, floor, expected in zip(
-        np.sqrt(mse), relative_se, lower, (0.4, 0.85), (0.5, 1.0), strict=True
+    bands = ((0.40, 0.65), (0.85, 1.20))
+    for rms, se, (lower, upper), (minimum, maximum), expected in zip(
+        np.sqrt(mse), relative_se, intervals, bands, (0.5, 1.0), strict=True
     ):
-        result = check_order(hs, rms, expected=expected)
+        result = check_order(hs, rms, expected=expected, tol_low=0.15, tol_high=0.15)
         print(
-            f"GBM RMS={rms}, relative SE={se}, lower95={bound:.5f}; "
-            f"{result.status}: {result.message}"
+            f"GBM RMS={rms}, relative SE={se}, order={result.fitted:.5f}, "
+            f"95% CI=[{lower:.5f}, {upper:.5f}]; {result.status}: {result.message}"
         )
-        assert bound >= floor
+        assert minimum <= lower <= upper <= maximum
         assert result.status == "PASS", result.message

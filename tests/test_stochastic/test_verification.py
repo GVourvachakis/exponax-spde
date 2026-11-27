@@ -65,6 +65,8 @@ def test_deterministic_etdrk1_order():
             for steps in counts
         ]
     )
-    result = check_order(horizon / counts, errors, expected=1)
+    result = check_order(
+        horizon / counts, errors, expected=1, tol_low=0.2, tol_high=0.2
+    )
     print(f"ETDRK1 errors={errors}; {result.status}: {result.message}")
     assert result.status == "PASS", result.message
