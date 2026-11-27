@@ -8,7 +8,6 @@ import pytest
 
 import exponax_spde as spde
 from exponax_spde.stepper.stochastic import StochasticAllenCahn
-from scripts.gpu_smoke import white_noise_variance
 
 pytestmark = pytest.mark.skipif(
     jax.config.jax_enable_x64, reason="Float32 smoke requires JAX_ENABLE_X64 unset."
@@ -55,4 +54,28 @@ def test_float32_step_and_rollouts(d, scheme):
 
 
 def test_float32_white_noise_variance():
-    white_noise_variance()
+    """At L=0, MN independent squared kicks estimate σ² h/dx to 5√(2/(MN)) SE."""
+    n, samples, h, sigma = 32, 8192, 0.002, 0.3
+    stepper = StochasticAllenCahn(
+        1,
+        1.0,
+        n,
+        h,
+        diffusivity=0,
+        lambda_=0,
+        sigma=sigma,
+        noise_alpha=0,
+    )
+    initial = jnp.zeros((1, n), dtype=jnp.float32)
+    keys = jax.random.split(jax.random.key(604), samples)
+    powers = jax.jit(
+        lambda keys: jax.lax.map(
+            lambda key: jnp.mean(stepper(initial, key=key) ** 2), keys, batch_size=128
+        )
+    )(keys)
+    target = sigma**2 * h * n
+    ratio = float(powers.mean()) / target
+    z = abs(ratio - 1) / np.sqrt(2 / (samples * n))
+    print(f"white noise variance/expected={ratio:.8f}, deviation={z:.4f} SE")
+    assert powers.dtype == jnp.float32
+    assert z <= 5
