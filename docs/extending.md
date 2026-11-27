@@ -13,36 +13,31 @@ Use the same order for the template's deterministic update and its reference.
 
 ## Template: stochastic Kuramoto-Sivashinsky
 
-The stochastic KS equation in Itô form is:
+The 1-D stochastic KS equation in Itô form is:
 
-$$\partial_t u + \tfrac{1}{2}\|\nabla u\|^2 + \Delta u + \Delta^2 u = \sigma(u)\,\xi(x,t)$$
+$$\partial_t u + \tfrac{1}{2}\|\nabla u\|^2 + \Delta u + \partial_x^4 u = \sigma\,\xi(x,t)$$
 
-which splits as $L(u) = -\Delta u - \Delta^2 u$ (linear, ETD) and
+which splits as $L(u) = -\Delta u - \partial_x^4 u$ (linear, ETD) and
 $\mathcal{N}(u) = -\tfrac{1}{2}\|\nabla u\|^2$ (nonlinear, explicit).
+
+See the [additive noise model](noise_model.md) for variance units and coupling.
 
 ### Step 1 — create the stepper module
 
 `exponax_spde/stepper/stochastic/_stochastic_ks.py`:
 
 ```python
-from __future__ import annotations
-from typing import Literal
-import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Complex, Float, PRNGKeyArray
-from exponax._base_stepper import BaseStepper
-from exponax._spectral import build_derivative_operator, build_scaling_array, fft, ifft
-from exponax.nonlin_fun import ConvectionNonlinearFun  # or write a custom one
+from exponax import BaseStepper, fft, ifft, spectral
+from exponax.nonlin_fun import GradientNormNonlinearFun
+from jaxtyping import Array
+
+from ._stochastic_allen_cahn import phi1
 
 
 class StochasticKuramotoSivashinsky(BaseStepper):
-    diffusivity: float
-    sigma: float
-    noise_alpha: float
-    noise_type: str = eqx.field(static=True)
-    _noise_std: Array
-    _noise_std_base: Array
+    _additive_amplitude: Array
 
     def __init__(
         self,
@@ -51,37 +46,29 @@ class StochasticKuramotoSivashinsky(BaseStepper):
         num_points,
         dt,
         *,
-        diffusivity=1.0,
         sigma=0.1,
         noise_alpha=1.0,
-        noise_type="additive",
     ):
-        self.diffusivity = diffusivity
-        self.sigma = sigma
-        self.noise_alpha = noise_alpha
-        self.noise_type = noise_type
-
-        deriv_op = build_derivative_operator(
+        derivative = spectral.build_derivative_operator(
             num_spatial_dims, domain_extent, num_points
         )
-        k_sq = -jnp.sum(deriv_op**2, axis=0, keepdims=True).real
-        dx_d = (domain_extent / num_points) ** num_spatial_dims
-        filter_k = (1.0 + k_sq) ** (-noise_alpha / 2.0)
-        sqrt_dt_over_dxd = jnp.sqrt(dt / dx_d)
-        self._noise_std = sigma * filter_k * sqrt_dt_over_dxd
-        self._noise_std_base = filter_k * sqrt_dt_over_dxd
-
+        linear = self._build_linear_operator(derivative).real
+        k_sq = -jnp.sum(derivative**2, axis=0, keepdims=True).real
+        cell_volume = (domain_extent / num_points) ** num_spatial_dims
+        q = (1 + k_sq) ** (-noise_alpha)
+        self._additive_amplitude = sigma * jnp.sqrt(
+            q * dt * phi1(2 * dt * linear) / cell_volume
+        )
         super().__init__(
             num_spatial_dims, domain_extent, num_points, dt, num_channels=1, order=1
         )
 
     def _build_linear_operator(self, derivative_operator):
-        laplacian = jnp.sum(derivative_operator**2, axis=0, keepdims=True)
-        # L = -Δ - Δ²  (instability at intermediate scales)
-        return -laplacian - laplacian**2
+        laplacian = spectral.build_laplace_operator(derivative_operator, order=2)
+        fourth_order = spectral.build_laplace_operator(derivative_operator, order=4)
+        return -laplacian - fourth_order
 
     def _build_nonlinear_fun(self, derivative_operator):
-        # Gradient-norm nonlinearity: N(u) = -½|∇u|²
         return GradientNormNonlinearFun(
             self.num_spatial_dims,
             self.num_points,
@@ -93,11 +80,18 @@ class StochasticKuramotoSivashinsky(BaseStepper):
     def step(self, u):
         raise NotImplementedError("Use stepper(u, key=key)")
 
+    def sample_increment(self, key):
+        shape = (1,) + (self.num_points,) * self.num_spatial_dims
+        white = jax.random.normal(key, shape, dtype=self._additive_amplitude.dtype)
+        return self._additive_amplitude * fft(white)
+
+    def step_fourier(self, u_hat, *, key):
+        return super().step_fourier(u_hat) + self.sample_increment(key)
+
     def __call__(self, u, *, key):
-        # Transform to Fourier space, call the shared stochastic update,
-        # then transform back. Use BaseStepper.step_fourier for the drift.
-        ...
+        return ifft(self.step_fourier(fft(u), key=key), num_points=self.num_points)
 ```
+
 
 ### Step 2 — use `TamedPolynomialNonlinearFun` if needed
 
@@ -153,7 +147,7 @@ from .stepper import StochasticAllenCahn, StochasticKuramotoSivashinsky
 class TestDeterministicLimitKS:
     def test_single_step_sigma_zero_1d(self):
         p = dict(num_spatial_dims=1, domain_extent=100.0, num_points=128, dt=0.1)
-        det = ex.stepper.KuramotoSivashinskyConservative(**p, order=1)
+        det = ex.stepper.KuramotoSivashinsky(**p, order=1)
         sto = StochasticKuramotoSivashinsky(**p, sigma=0.0)
         u0 = ex.ic.RandomTruncatedFourierSeries(1, cutoff=5)(128, key=KEY0)
         assert jnp.allclose(det(u0), sto(u0, key=KEY0), atol=1e-5)
@@ -165,7 +159,7 @@ class TestDeterministicLimitKS:
 
 - [ ] `_build_linear_operator` returns `L_k` with the correct sign convention
 - [ ] `_build_nonlinear_fun` uses dealiasing (`dealiasing_fraction=2/3`)
-- [ ] `_noise_std` precomputed with `σ · filter_k · √(Δt/dx^d)` in `__init__`
+- [ ] Additive amplitude uses the exact convolution factor and the FFT of a real draw
 - [ ] `step()` raises `NotImplementedError`
 - [ ] `__call__` and `step_fourier` both require `key=`
 - [ ] `TestDeterministicLimit` passes with `sigma=0, use_taming=False`

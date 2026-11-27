@@ -35,6 +35,12 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
   Set `cap` to about 60% of the machine's total RAM, then run
   `systemd-run --user --scope -p "MemoryMax=$cap" -p MemorySwapMax=0 -- env JAX_ENABLE_X64=1 poetry run pytest -q`.
   Slow tests are marked `@pytest.mark.slow`.
+- Run heavy jobs one at a time under `systemd-run --user --scope -p MemoryMax=8400M -p MemorySwapMax=0`.
+- Keep each new or changed fast test within 10 s and 1.5 GiB peak RSS. Keep each slow
+  test within 120 s and 4 GiB peak RSS. Measure with `pytest --durations` and
+  `/usr/bin/time -v` on targeted selections under the cap.
+- Chunk Monte Carlo sampling and accumulate statistics without materialising
+  an array of shape `(M, T, ...)`. Verify JAX features on the 0.6.2 CI floor.
 
 ## Git and GitHub
 

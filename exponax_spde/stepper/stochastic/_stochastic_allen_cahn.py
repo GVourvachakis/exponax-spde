@@ -21,63 +21,20 @@ The discrete update is
 
 where E_k = exp(L_k Δt) and φ₁(z) = (eᶻ - 1)/z.
 
-Noise variance (exact discrete-time form)
-─────────────────────────────────────────
-The EEM stochastic integral ∫₀^Δt e^{L_k(Δt-s)} dŴ_k(s) has exact
-coefficient-space variance (Lord, Powell & Shardlow, 2014, §10.5)
+Additive stochastic convolution
+────────────────────────────────
+Let q_k = (1 + |k|²_phys)^(-α) and F_h(L_k) = h φ₁(2hL_k), for h = Δt.
+For a real, independent unit Gaussian field ξ in physical space, draw
 
-    Var_k = Q_k · (e^{2L_k Δt} - 1) / (2 L_k)   [L_k ≠ 0]
-          = Q_k · Δt                               [L_k → 0]
+    Ô_k = σ sqrt(q_k F_h(L_k) / dx^d) · FFT(ξ)_k.
 
-where Q_k = σ² · (1 + |k|²_phys)^{-α} / dx^d is the noise spectral
-density in coefficient units (normalised by the mesh volume element
-dx^d so that the variance is resolution-consistent).
+The unnormalised FFT has E|FFT(ξ)_k|² = N^d. The real draw supplies
+the Hermitian symmetry on DC and Nyquist planes. F_h uses the stored
+real symbol L_k, including when exp(hL_k) underflows. See
+docs/noise_model.md for the variance units and migration.
 
-This formula is used for both additive and multiplicative noise.  For
-multiplicative noise Q_k is replaced by Q_base = Q_k / σ² so that σ
-enters exactly once via the u · dW product.
-
-API facts confirmed from exponax source
-────────────────────────────────────────
-BaseStepper.__init__(num_spatial_dims, domain_extent, num_points, dt,
-                     *, num_channels, order)
-  - no dealiasing_fraction argument.
-  - derivative_operator built locally; NOT stored on self.
-  - self._integrator : BaseETDRK instance.
-
-BaseETDRK: self._exp_term = exp(dt * L_k)
-ETDRK1:   self._coef_1 = φ₁(L_k Δt) · Δt
-          self._nonlinear_fun : TamedPolynomialNonlinearFun instance
-
-BaseNonlinearFun.__call__(u_hat) → nonlin_hat  (single Complex array)
-
-build_derivative_operator(num_spatial_dims, domain_extent, num_points)
-  → pure function from exponax._spectral; called again here to obtain
-    k² for the noise spectrum (BaseStepper discards it after construction).
-
-Known limitations
-─────────────────
-1. DC (k=0) and Nyquist (k=N/2) modes: independent real and imaginary
-   Gaussian noise is sampled for every rfft entry, including these two
-   modes which must be purely real for a real-valued field.  Taking
-   ``.real`` after ``ifft`` silently halves their per-step variance.
-   Both modes are either masked in the invariant-measure tests (k=0)
-   or lie above the dealiasing cutoff (Nyquist), so no validation is
-   affected.  A rigorous fix would project z_i to zero at those indices.
-
-2. Milstein prefactor: the Milstein correction is scaled by φ₁(L_k Δt)Δt
-   (treating it as a nonlinear ETD term). This is non-standard — the
-   textbook EEM-Milstein scheme (Jentzen & Kloeden, 2009a) applies the
-   correction without this ETD factor. The variant is retained for
-   backward compatibility; the test verifies finiteness and variance
-   boundedness rather than strict weak-error ordering.
-
-3. Noise above the dealiasing cutoff: the noise arrays _noise_std and
-   _noise_std_base are NOT masked by the dealiasing filter, so modes
-   above the 2/3 cutoff do receive stochastic forcing. This is
-   physically intentional — dealiasing prevents aliasing of the
-   nonlinear product, not external forcing — and consistent with
-   standard Q-Wiener discretisations (Lord et al., 2014, Chapter 10).
+The multiplicative path retains its legacy normalisation and Milstein
+correction pending #4b.
 """
 
 from __future__ import annotations
@@ -158,13 +115,13 @@ class StochasticAllenCahn(BaseStepper):
         thinner, sharper interfaces.  Defaults to ``0.01``.
     - `lambda_`: The reaction rate ``λ ≥ 0``.  Setting ``lambda_=0``
         reduces the equation to the stochastic heat equation, whose
-        invariant measure is Gaussian with covariance ``C_k = Q_k/(2ν|k|²)``
+        nonzero modes have Gaussian invariant covariance ``C_k = Q_k/(2ν|k|²)``
         and can be validated analytically.  Defaults to ``1.0``.
     - `noise_type`: Either ``"additive"`` (``σ(u) = σ``) or
         ``"multiplicative"`` (``σ(u) = σu``, linear / gradient-type).
         Defaults to ``"additive"``.
-    - `sigma`: The noise amplitude ``σ ≥ 0``.  Setting ``sigma=0``
-        recovers the deterministic Allen-Cahn solver; the output is
+    - `sigma`: For additive noise, the physical Q-Wiener amplitude ``σ ≥ 0``.
+        Setting ``sigma=0`` recovers the deterministic Allen-Cahn solver; the output is
         then identical regardless of the PRNG key.  Defaults to ``0.1``.
     - `noise_alpha`: Spectral colour index ``α ≥ 0`` for the Q-Wiener
         covariance ``Q_k ∝ (1 + |k|²_phys)^{-α}``.  ``α = 0`` gives
@@ -210,6 +167,13 @@ class StochasticAllenCahn(BaseStepper):
     u_batch = jax.vmap(lambda k: stepper(u0, key=k))(keys)
     ```
 
+    **Additive increments (experimental):**
+
+    ``sample_increment(key)`` gives an exact additive stochastic convolution
+    in raw rFFT units. Replay it with ``step_with_increment(u_hat, increment)``.
+    On the fine stepper, ``coarsen_increments(increments)`` combines consecutive
+    draws along the leading axis for one longer step.
+
     **References:**
 
     - Allen, S. M., & Cahn, J. W. (1979). A microscopic theory for
@@ -220,7 +184,7 @@ class StochasticAllenCahn(BaseStepper):
     - Lord, G. J., Powell, C. E., & Shardlow, T. (2014).
         *An Introduction to Computational Stochastic PDEs*.
         Cambridge University Press.
-        https://doi.org/10.1017/CBO9781139016247
+        https://doi.org/10.1017/CBO9781139017329
         (EEM method, exact variance formula, and Q-Wiener
         discretisation: Chapters 7-10.)
 
@@ -229,7 +193,7 @@ class StochasticAllenCahn(BaseStepper):
         differential equations with additive space-time noise.
         *Proceedings of the Royal Society A*, 465(2102), 649-667.
         https://doi.org/10.1098/rspa.2008.0325
-        (ETD-based EEM integrators and Milstein correction for SPDEs.)
+        (Exponential integration with additive SPDE noise.)
 
     - Jentzen, A., & Kloeden, P. E. (2009b). The numerical approximation
         of stochastic partial differential equations.
@@ -534,7 +498,7 @@ class StochasticAllenCahn(BaseStepper):
         """Legacy multiplicative EEM update, pending #4b."""
 
         # 1. ETD coefficients from the ETDRK integrator stored by BaseStepper.
-        # Replaced in the fix for #4.
+        # The legacy multiplicative coefficients are replaced in #4b.
         exp_term = self._integrator._exp_term  # exp(L_k Δt)
         phi_1_dt = self._integrator._coef_1  # φ₁(L_k Δt) · Δt
 
@@ -553,8 +517,6 @@ class StochasticAllenCahn(BaseStepper):
         #                    → Δt                              [L_k → 0]
         #
         #    Recovered as (1 - e^{2 L_dt}) / (-2 L_k) where L_dt = L_k · Δt.
-        #    For over-damped modes (exp_term → 0) factor → 0, so those
-        #    modes receive negligible noise; no NaN risk.
         L_dt = jnp.log(exp_term)  # L_k · Δt
         L_k = L_dt / self.dt
         factor = jnp.where(

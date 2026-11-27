@@ -7,6 +7,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Experimental additive `sample_increment`, `step_with_increment` and
+  `coarsen_increments` methods support increment reuse and coupled paths.
+
 - `stochastic_structure_factor` computes the ensemble spectrum during rollout without
   storing the trajectories. [#11](https://github.com/GVourvachakis/exponax-spde/issues/11)
 
@@ -18,12 +21,22 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed (breaking)
 
+- Additive noise uses the exact, correctly normalised stochastic convolution.
+  The variance changes for a fixed `sigma`. See the
+  [migration guide](docs/noise_model.md). Reported by @rcgiri-physics
+  in [#4](https://github.com/GVourvachakis/exponax-spde/issues/4).
+
 - `StochasticAllenCahn` now raises `ValueError` for any `order` other than 1.
   In v0.1.0, order 2 silently ran exponential Euler, and orders 3 and 4 used
   the ETDRK half-step coefficient for the cubic term. Reported by
   @rcgiri-physics in [#5](https://github.com/GVourvachakis/exponax-spde/issues/5).
   Higher-order stochastic integration is tracked in
   [#14](https://github.com/GVourvachakis/exponax-spde/issues/14).
+
+### Fixed
+
+- Strongly damped additive modes stay finite under JIT when their
+  deterministic propagator underflows.
 
 ### Internal
 

@@ -132,7 +132,7 @@ $Q_k \propto (1 + |k|^2_{\rm phys})^{-\alpha}$.
 |-----------|-------------|---------|
 | `diffusivity` | Interface width $\nu > 0$ | `0.01` |
 | `lambda_` | Reaction rate $\lambda \geq 0$ | `1.0` |
-| `sigma` | Noise amplitude $\sigma \geq 0$ | `0.1` |
+| `sigma` | Physical additive Q-Wiener amplitude $\sigma \geq 0$ | `0.1` |
 | `noise_alpha` | Spectral colour index $\alpha$ | `1.0` |
 | `noise_type` | `"additive"` or `"multiplicative"` | `"additive"` |
 | `use_taming` | Hutzenthaler-Jentzen taming of $-\lambda u^3$ | `True` |
@@ -152,6 +152,17 @@ u_next = stepper(u, key=jax.random.PRNGKey(0))
 keys = jax.random.split(jax.random.PRNGKey(0), M)
 u_batch = jax.vmap(lambda k: stepper(u0, key=k))(keys)
 ```
+
+---
+
+## Experimental additive increment API
+
+Use `sample_increment(key)` to draw a raw rFFT stochastic convolution
+and `step_with_increment(u_hat, increment)` to replay it. Call
+`fine.coarsen_increments(increments)` with two or more consecutive
+increments along the leading axis to couple a longer step to a fine
+path. The additive variance for a fixed `sigma` changes in v0.2.0.
+See the [noise model and migration guide](docs/noise_model.md).
 
 ---
 
@@ -262,17 +273,16 @@ See `docs/extending.md` for a step-by-step template.
 
 ## Known Limitations
 
-1. **DC/Nyquist mode variance**: `.real` after `ifft` silently halves the
-   per-step variance of the DC and Nyquist modes.
-2. **Non-standard Milstein prefactor**: the Milstein correction carries a
-   $\varphi_1(L_k\Delta t)\Delta t$ ETD factor; measured weak-error slope
-   is therefore closer to 1 than to 2.
-3. **Noise above dealiasing cutoff**: `_noise_std` is not masked by the
-   2/3 filter, consistent with Q-Wiener conventions (Lord et al., 2014, Ch. 10).
-4. **Strong convergence test**: uses a same-key proxy rather than exact path
-   coupling; measured slope is a lower bound on the true strong order.
-5. **`strang_split_step` JIT limitation**: not JIT-compatible across steps
-   when the SSA sub-step uses a Python-level RNG.
+1. **Multiplicative update**: the legacy normalisation and Milstein
+   prefactor remain pending #4b. The experimental increment methods
+   currently support additive noise.
+2. **Continuum regularity**: 2-D and 3-D white-noise Allen–Cahn needs
+   renormalisation in the continuum. The finite-grid stepper and planned
+   warnings are discussed in [#8](https://github.com/GVourvachakis/exponax-spde/issues/8).
+3. **Hybrid SSA**: the Python SSA callback limits JIT compilation across steps.
+4. **Validation figures**: the current notebook and media use the v0.1.0
+   noise model. Their regeneration is tracked in
+   [#17](https://github.com/GVourvachakis/exponax-spde/issues/17).
 
 ---
 
