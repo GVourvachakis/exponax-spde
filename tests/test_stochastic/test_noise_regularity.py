@@ -2,6 +2,7 @@ import warnings
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from exponax_spde import NoiseRegularityWarning
@@ -83,6 +84,47 @@ def test_no_regularity_warning_from_jitted_step():
 
 
 @pytest.mark.parametrize("name", ["noise_alpha", "sigma", "diffusivity"])
-def test_negative_noise_parameters_are_rejected(name):
+@pytest.mark.parametrize("wrap", [float, jnp.asarray], ids=["python", "array"])
+def test_negative_noise_parameters_are_rejected(name, wrap):
     with pytest.raises(ValueError, match=rf"^{name} must be non-negative"):
-        StochasticAllenCahn(1, 1.0, 4, 0.001, **{name: -0.1})
+        StochasticAllenCahn(1, 1.0, 4, 0.001, **{name: wrap(-0.1)})
+
+
+@pytest.mark.parametrize("transform", ["grad", "vmap"])
+def test_constructing_with_traced_sigma(transform):
+    """The λ=0 spatial mean is σ√(h/dx²) times the mean of the same draw."""
+    n, dt, key = 8, 0.015, jax.random.key(123)
+    scale = n * np.sqrt(dt) * np.mean(np.asarray(jax.random.normal(key, (1, n, n))))
+
+    def loss(sigma):
+        stepper = StochasticAllenCahn(
+            2, 1.0, n, dt, lambda_=0, sigma=sigma, noise_alpha=0
+        )
+        return jnp.mean(stepper(jnp.zeros((1, n, n)), key=key))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", NoiseRegularityWarning)
+        if transform == "grad":
+            actual, expected = jax.grad(loss)(0.2), scale
+        else:
+            sigmas = jnp.array([0.1, 0.2, 0.4])
+            actual, expected = jax.vmap(loss)(sigmas), np.asarray(sigmas) * scale
+
+    np.testing.assert_allclose(actual, expected, rtol=2e-6, atol=1e-8)
+
+
+def test_constructing_with_traced_diffusivity():
+    """The first cosine mode at λ=σ=0 decays as exp(-ν h (2π)²)."""
+    n, dt, nu = 8, 0.015, 0.07
+    initial = jnp.cos(2 * jnp.pi * jnp.arange(n) / n)[None, :]
+    key = jax.random.key(123)
+
+    def loss(diffusivity):
+        stepper = StochasticAllenCahn(
+            1, 1.0, n, dt, lambda_=0, sigma=0, diffusivity=diffusivity
+        )
+        return 2 * jnp.mean(initial * stepper(initial, key=key))
+
+    k2_dt = (2 * np.pi) ** 2 * dt
+    expected = -k2_dt * np.exp(-nu * k2_dt)
+    np.testing.assert_allclose(jax.grad(loss)(nu), expected, rtol=2e-6, atol=1e-8)

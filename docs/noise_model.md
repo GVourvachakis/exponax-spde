@@ -231,6 +231,12 @@ no continuum claim and no regularity warning. Negative `noise_alpha`,
 requires trace-class noise ($\alpha>d/2$) and raises `ValueError`
 otherwise.
 
+The sign checks accept Python scalars and concrete JAX scalar arrays.
+During transformations that construct the stepper, a traced argument
+skips its sign check. The regularity warning requires all three
+arguments to be concrete. Validate traced inputs before applying the
+JAX transformation.
+
 [Noise correction #4](https://github.com/GVourvachakis/exponax-spde/issues/4) ·
 [Regularity #8](https://github.com/GVourvachakis/exponax-spde/issues/8) ·
 [Figure regeneration #17](https://github.com/GVourvachakis/exponax-spde/issues/17)

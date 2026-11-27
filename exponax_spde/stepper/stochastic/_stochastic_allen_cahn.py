@@ -142,7 +142,10 @@ class StochasticAllenCahn(BaseStepper):
         with ``exponax_spde.NoiseRegularityWarning`` for additive and
         multiplicative Euler–Maruyama noise when ``α ≤ d/2 - 1``.
         See ``docs/noise_model.md`` for the continuum assumptions and how to
-        silence the warning for intentional finite-grid use. Defaults to ``1.0``.
+        silence the warning for intentional finite-grid use. Each sign
+        check requires a concrete argument. A tracer in any of the three
+        noise parameters suppresses the constructor's regularity warning.
+        Validate those inputs before tracing. Defaults to ``1.0``.
     - `use_taming`: Whether to apply Hutzenthaler-Jentzen taming to the
         cubic nonlinear term
 
@@ -296,12 +299,13 @@ class StochasticAllenCahn(BaseStepper):
                 "tracked in #14."
             )
 
-        for name, value in (
+        parameters = (
             ("noise_alpha", noise_alpha),
             ("sigma", sigma),
             ("diffusivity", diffusivity),
-        ):
-            if value < 0:
+        )
+        for name, value in parameters:
+            if not isinstance(value, jax.core.Tracer) and value < 0:
                 raise ValueError(f"{name} must be non-negative, got {value}.")
 
         if use_milstein and noise_alpha <= num_spatial_dims / 2:
@@ -311,9 +315,10 @@ class StochasticAllenCahn(BaseStepper):
             )
 
         if (
-            sigma != 0
+            num_spatial_dims >= 2
+            and not any(isinstance(value, jax.core.Tracer) for _, value in parameters)
+            and sigma != 0
             and diffusivity > 0
-            and num_spatial_dims >= 2
             and noise_alpha <= num_spatial_dims / 2 - 1
         ):
             if noise_type == "additive":
