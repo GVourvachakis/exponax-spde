@@ -145,6 +145,25 @@ and $1$ for Milstein. The tests use paired bootstrap bounds as the
 primary check and physverify as a host-side check on final RMS errors.
 [Kloeden & Platen (1992)](https://doi.org/10.1007/978-3-662-12616-5)
 
+### When Milstein improves on Euler–Maruyama
+
+For smooth coefficients and test functions under the usual moment and
+regularity assumptions, Euler–Maruyama and Milstein both have weak order
+one. The Milstein correction increases the strong order from one half to
+one in the commutative setting. [Kloeden & Platen (1992)](https://doi.org/10.1007/978-3-662-12616-5)
+
+Resolving that gain requires commutative noise, which the diagonal
+collocation diffusion supplies, and small $\sigma^2 v_W$ per step. The
+drift error must be small enough to expose the stochastic error, and
+the noise must be sufficiently smooth relative to the stiffness of
+the resolved modes. [Jentzen & Röckner (2015)](https://doi.org/10.1007/s10208-015-9247-y),
+[Lord & Tambue (2013)](https://doi.org/10.1093/imanum/drr059)
+
+Weak errors and wall times describe the chosen observable and workload.
+They cannot rank the schemes by strong accuracy. Compare terminal path
+errors using the same Brownian increments across resolutions. The v0.1.0
+comparisons used independent seeds and the former Milstein term.
+
 ### Multiplicative migration
 
 The v0.1.0 draw counted time twice, used reconstruction scaling and
