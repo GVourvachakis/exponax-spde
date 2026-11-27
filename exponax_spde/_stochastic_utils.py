@@ -62,6 +62,7 @@ def stochastic_rollout(
     num_steps: int,
     *,
     include_init: bool = True,
+    stride: int = 1,
 ) -> Callable[[Float[Array, "1 * N"], PRNGKeyArray], Float[Array, "T 1 *N"]]:
     """Return a function that rolls a stochastic stepper forward.
 
@@ -69,8 +70,10 @@ def stochastic_rollout(
 
         trajectory = rollout_fn(u_init, key)
 
-    where ``trajectory`` has shape ``(T+1, 1, *N)`` if
-    ``include_init=True`` else ``(T, 1, *N)``.
+    The trajectory contains steps ``stride, 2*stride, ...`` up to
+    ``num_steps``, with step zero prepended if ``include_init=True``.
+    Unlike this stochastic utility, upstream ``exponax.rollout`` has no
+    ``stride`` argument.
 
     The function is fully JIT-compatible because it uses
     ``jax.lax.scan`` internally rather than a Python-level loop.
@@ -82,6 +85,8 @@ def stochastic_rollout(
     - `num_steps`: Number of time steps T to take.
     - `include_init`: Whether to prepend the initial condition to the
         returned trajectory array.
+    - `stride`: Positive number of time steps between saved states.
+        The final partial block has no saved state.
 
     **Example:**
 
@@ -91,6 +96,9 @@ def stochastic_rollout(
     trajectory.shape  # (501, 1, N)
     ```
     """
+
+    if stride < 1:
+        raise ValueError("stride must be positive.")
 
     def _rollout(
         u_init: Float[Array, "1 * N"],
@@ -102,7 +110,22 @@ def stochastic_rollout(
             u_next = stepper(u, key=subkey)
             return (u_next, rng), u_next
 
-        (_, _), trajectory = jax.lax.scan(_step, (u_init, key), None, length=num_steps)
+        if stride == 1:
+            (_, _), trajectory = jax.lax.scan(
+                _step, (u_init, key), None, length=num_steps
+            )
+        else:
+
+            def block(carry, _):
+                def take_step(state, _):
+                    return _step(state, None)[0], None
+
+                carry, _ = jax.lax.scan(take_step, carry, None, length=stride)
+                return carry, carry[0]
+
+            (_, _), trajectory = jax.lax.scan(
+                block, (u_init, key), None, length=num_steps // stride
+            )
 
         if include_init:
             trajectory = jnp.concatenate([u_init[jnp.newaxis], trajectory], axis=0)
