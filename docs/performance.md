@@ -13,11 +13,9 @@ checks target CPU float64. Use float32 for production workloads once the
 statistics and precision meet your requirements. TPUs lack native
 float64 arithmetic.
 
-On an AMD Ryzen 7 5800H, the float32 CPU throughput was about 1.5× the
-float64 throughput for 1-D N=128 and 1.8–1.9× for 2-D N=64. These
-measurements used 256 paths and 2,000 compiled steps, with
-`block_until_ready()` and compilation outside the timer. Benchmark on the
-target accelerator to measure its throughput.
+Measure both throughput and numerical error on the target hardware.
+Warm up or compile the workloads before timing, and synchronise device
+execution with `block_until_ready()`.
 
 For GPU memory pressure, set `XLA_PYTHON_CLIENT_PREALLOCATE=false`
 before importing JAX to allocate on demand, or limit the pool with
@@ -30,9 +28,11 @@ before importing JAX to allocate on demand, or limit the pool with
 - `batch_size` limits how many paths a mapped kernel processes together in
   `stochastic_ensemble_rollout`, `stochastic_structure_factor` and
   `richardson_weak_extrapolation`. `None` uses the full vmap batch. Compare
-  peak memory and throughput on your workload. An ensemble rollout still
-  returns all retained states, and the streamed spectrum still carries
-  current fields for all paths.
+  peak memory and throughput on your workload. Batching bounds in-flight
+  work. It leaves the size of the returned trajectories unchanged.
+  Combine chunked mapping with strided single-path rollouts to retain
+  fewer states, or use streamed statistics when only a spectrum is
+  needed. The streamed spectrum carries current fields for all paths.
 - `stochastic_rollout(stepper, num_steps, stride=k)` saves steps
   `k, 2*k, …`. It saves step zero if `include_init=True` and omits
   the final partial block. The saved states use the same keys as those
@@ -47,12 +47,12 @@ before importing JAX to allocate on demand, or limit the pool with
   [FFT performance issue #22](https://github.com/GVourvachakis/exponax-spde/issues/22)
   · [Exponax Performance Hints](https://fkoehler.site/exponax/examples/performance_hints/)
 
-In the CPU runs with the corrected multiplicative implementation, Milstein
-cost about 0–7% more than Euler–Maruyama. At 256 steps the coupled fixed-grid
-SPDE test had about 14× lower strong RMS error with Milstein. Prefer it
-for pathwise accuracy when `alpha > d/2` and the commutative, smooth-noise
-regime resolves the stochastic error. Both methods have weak order one
-under the usual smoothness assumptions.
+Milstein adds elementwise work to the multiplicative step and uses
+the same FFT count as Euler–Maruyama. At 256 steps the coupled fixed-grid
+SPDE benchmark gives about 14× smaller strong RMS error with Milstein.
+This is a pathwise accuracy gain in the commutative, smooth-noise
+regime. Both methods have weak order one under the usual smoothness
+assumptions.
 [Noise model](noise_model.md) · [Corrected implementation and evidence #20](https://github.com/GVourvachakis/exponax-spde/pull/20)
 
 ## Distribute the key batch
@@ -112,26 +112,3 @@ set `JAX_COMPILATION_CACHE_DIR` to a user-owned directory. The
 `jax_persistent_cache_min_entry_size_bytes` control which executables
 are written. Fix shapes, dtypes and rollout parameters where practical.
 [JAX persistent compilation cache](https://docs.jax.dev/en/latest/persistent_compilation_cache.html)
-
-## Run the smoke checks on a Colab GPU
-
-1. In Colab, choose **Runtime → Change runtime type** and select a GPU
-   such as T4 if a free GPU is available.
-2. In a fresh notebook cell, install the CUDA build of JAX and the
-   project from main. Restart the runtime after installation if JAX
-   has already been imported.
-
-   ```ipython
-   %pip install -U "jax[cuda12]" "git+https://github.com/GVourvachakis/exponax-spde.git@main"
-   ```
-
-3. Download and run the script in a fresh float32 process.
-
-   ```ipython
-   !curl -fsSL https://raw.githubusercontent.com/GVourvachakis/exponax-spde/main/scripts/gpu_smoke.py -o /tmp/exponax_gpu_smoke.py
-   !env -u JAX_ENABLE_X64 python /tmp/exponax_gpu_smoke.py
-   ```
-
-4. Confirm the printed device is a GPU and paste the device list,
-   analytical checks and median throughput into
-   [issue #21](https://github.com/GVourvachakis/exponax-spde/issues/21).
