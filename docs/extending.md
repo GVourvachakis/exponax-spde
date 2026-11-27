@@ -26,6 +26,7 @@ See the [additive noise model](noise_model.md) for variance units and coupling.
 
 `exponax_spde/stepper/stochastic/_stochastic_ks.py`:
 
+<!-- non-executable template -->
 ```python
 import jax
 import jax.numpy as jnp
@@ -99,6 +100,7 @@ If the new SPDE has a polynomial nonlinearity of order ≥ 3, import and use
 `TamedPolynomialNonlinearFun` from `exponax_spde.nonlin_fun` instead of the
 exponax built-in:
 
+<!-- non-executable template -->
 ```python
 from exponax_spde.nonlin_fun import TamedPolynomialNonlinearFun
 
@@ -120,6 +122,7 @@ def _build_nonlinear_fun(self, derivative_operator):
 
 `exponax_spde/stepper/stochastic/__init__.py`:
 
+<!-- non-executable template -->
 ```python
 from ._stochastic_allen_cahn import StochasticAllenCahn
 from ._stochastic_ks import StochasticKuramotoSivashinsky  # add this line
@@ -129,6 +132,7 @@ __all__ = ["StochasticAllenCahn", "StochasticKuramotoSivashinsky"]
 
 `exponax_spde/stepper/__init__.py`:
 
+<!-- non-executable template -->
 ```python
 from .stochastic import StochasticAllenCahn, StochasticKuramotoSivashinsky
 
@@ -137,12 +141,14 @@ __all__ = ["StochasticAllenCahn", "StochasticKuramotoSivashinsky"]
 
 `exponax_spde/__init__.py`:
 
+<!-- non-executable template -->
 ```python
 from .stepper import StochasticAllenCahn, StochasticKuramotoSivashinsky
 ```
 
 ### Step 4 — add a deterministic limit test
 
+<!-- non-executable template -->
 ```python
 class TestDeterministicLimitKS:
     def test_single_step_sigma_zero_1d(self):

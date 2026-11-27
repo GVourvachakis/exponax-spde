@@ -7,6 +7,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Export StochasticAllenCahn from the package root for the README quickstart.
+
 - Richardson weak extrapolation accepts a weak order and a terminal observable,
   reports standard errors and supports opt-in paired paths
   ([#10](https://github.com/GVourvachakis/exponax-spde/issues/10)).
