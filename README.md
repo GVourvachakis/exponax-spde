@@ -168,6 +168,8 @@ See the [noise model and migration guide](docs/noise_model.md).
 
 ## Utilities for SPDEs
 
+See the [performance and accelerator guide](docs/performance.md).
+
 | Function | Description |
 |----------|-------------|
 | `stochastic_rollout(stepper, T, *, include_init)` | Single trajectory via `jax.lax.scan`; JIT-compatible |
