@@ -23,7 +23,7 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
 
 ## Commands
 
-- Build the in-project `.venv` with
+- Use Poetry 2.4.2 with the committed lock. Build the in-project `.venv` with
   `POETRY_VIRTUALENVS_IN_PROJECT=true poetry install --all-extras`.
   Use `.venv/bin/python` in VS Code and select the Jupyter kernel
   "Python (exponax-spde)". CI installs `.[test]` with pip.
@@ -31,11 +31,9 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
 - Lint and format with `poetry run pre-commit run --all-files`.
 - Run fast tests with `JAX_ENABLE_X64=1 poetry run pytest -m "not slow" -q`.
 - Run one pytest or JAX-heavy job at a time. Finish environment builds before running tests.
-- Run the full suite in a memory-capped systemd user scope with swap disabled.
-  Set `cap` to about 60% of the machine's total RAM, then run
-  `systemd-run --user --scope -p "MemoryMax=$cap" -p MemorySwapMax=0 -- env JAX_ENABLE_X64=1 poetry run pytest -q`.
-  Slow tests are marked `@pytest.mark.slow`.
-- Run heavy jobs one at a time under `systemd-run --user --scope -p MemoryMax=8400M -p MemorySwapMax=0`.
+- Run heavy jobs in a memory-limited process scope with swap disabled, using
+  a cap of about 60% of physical RAM. Run the full suite in that scope with
+  `JAX_ENABLE_X64=1 poetry run pytest -q`. Slow tests are marked `@pytest.mark.slow`.
 - Keep each new or changed fast test within 10 s and 1.5 GiB peak RSS. Keep each slow
   test within 120 s and 4 GiB peak RSS. Measure with `pytest --durations` and
   `/usr/bin/time -v` on targeted selections under the cap.
