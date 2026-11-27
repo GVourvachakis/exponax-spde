@@ -132,11 +132,11 @@ $Q_k \propto (1 + |k|^2_{\rm phys})^{-\alpha}$.
 |-----------|-------------|---------|
 | `diffusivity` | Interface width $\nu > 0$ | `0.01` |
 | `lambda_` | Reaction rate $\lambda \geq 0$ | `1.0` |
-| `sigma` | Physical additive Q-Wiener amplitude $\sigma \geq 0$ | `0.1` |
+| `sigma` | Physical Q-Wiener amplitude $\sigma \geq 0$ | `0.1` |
 | `noise_alpha` | Spectral colour index $\alpha$ | `1.0` |
 | `noise_type` | `"additive"` or `"multiplicative"` | `"additive"` |
 | `use_taming` | Hutzenthaler-Jentzen taming of $-\lambda u^3$ | `True` |
-| `use_milstein` | First-order Milstein correction (multiplicative only) | `False` |
+| `use_milstein` | First-order Milstein correction (multiplicative, $\alpha>d/2$) | `False` |
 
 **Special cases:**
 
@@ -155,13 +155,17 @@ u_batch = jax.vmap(lambda k: stepper(u0, key=k))(keys)
 
 ---
 
-## Experimental additive increment API
+## Experimental increment API
 
-Use `sample_increment(key)` to draw a raw rFFT stochastic convolution
-and `step_with_increment(u_hat, increment)` to replay it. Call
+Use `sample_increment(key)` to draw an additive convolution or a σ-free
+multiplicative Wiener increment in raw rFFT units. Replay it with
+`step_with_increment(u_hat, increment)`. Call
 `fine.coarsen_increments(increments)` with two or more consecutive
 increments along the leading axis to couple a longer step to a fine
-path. The additive variance for a fixed `sigma` changes in v0.2.0.
+path. To compile stepper methods, use `equinox.filter_jit` or JIT a closure
+over the stepper.
+
+The noise variance for a fixed `sigma` changes in v0.2.0.
 See the [noise model and migration guide](docs/noise_model.md).
 
 ---
@@ -185,13 +189,11 @@ See the [noise model and migration guide](docs/noise_model.md).
 (Lord, Powell & Shardlow, 2014, Chapters 7–10).
 
 The ETD operator splitting follows `exponax`'s `reaction.AllenCahn` convention
-($L = \nu\Delta + \lambda$, $\mathcal{N} = -\lambda u^3$) and adds the
-exact modewise stochastic-integral variance:
-
-$$\mathrm{Var}_k = Q_k \cdot \frac{e^{2L_k \Delta t} - 1}{2L_k}$$
-
-This avoids the $O(\Delta t)$ approximation of naive Euler-Maruyama while
-staying within `exponax`'s existing ETD infrastructure.
+($L = \nu\Delta + \lambda$, $\mathcal{N} = -\lambda u^3$). Additive noise
+uses the exact linear stochastic convolution. Multiplicative noise uses a
+pointwise product of the step-start field with a plain Wiener increment,
+then propagates the product. The optional Milstein term uses the same
+propagation and requires trace-class noise ($\alpha>d/2$).
 
 ---
 
@@ -250,7 +252,8 @@ JAX_ENABLE_X64=1 pytest tests/test_stochastic/ -v
 
 The test suite covers: deterministic limit, 1-D/2-D invariant measures,
 strong convergence order, structure-factor grid convergence, mean/variance
-time series, Milstein sanity, and JAX-compatibility (JIT, vmap, PyTree).
+time series, Milstein conditional moments, and JAX compatibility.
+The test extra includes physverify for host-side convergence checks.
 
 ---
 
@@ -273,14 +276,11 @@ See `docs/extending.md` for a step-by-step template.
 
 ## Known Limitations
 
-1. **Multiplicative update**: the legacy normalisation and Milstein
-   prefactor remain pending #4b. The experimental increment methods
-   currently support additive noise.
-2. **Continuum regularity**: 2-D and 3-D white-noise Allen–Cahn needs
+1. **Continuum regularity**: 2-D and 3-D white-noise Allen–Cahn needs
    renormalisation in the continuum. The finite-grid stepper and planned
    warnings are discussed in [#8](https://github.com/GVourvachakis/exponax-spde/issues/8).
-3. **Hybrid SSA**: the Python SSA callback limits JIT compilation across steps.
-4. **Validation figures**: the current notebook and media use the v0.1.0
+2. **Hybrid SSA**: the Python SSA callback limits JIT compilation across steps.
+3. **Validation figures**: the current notebook and media use the v0.1.0
    noise model. Their regeneration is tracked in
    [#17](https://github.com/GVourvachakis/exponax-spde/issues/17).
 

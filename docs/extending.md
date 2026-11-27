@@ -155,6 +155,21 @@ class TestDeterministicLimitKS:
 
 ---
 
+## Multiplicative increments
+
+Draw a σ-free Wiener increment by transforming a real Gaussian field.
+Multiply the physical increment by the step-start field at each grid point
+and propagate its FFT with the linear exponential. Dealias the deterministic
+nonlinearity only. For a Milstein correction, centre the squared Wiener
+increment by its scalar point variance and apply the same propagator.
+Coarse steps sum the fine Wiener increments before computing the product or
+correction. The [noise model](noise_model.md) gives the formulas and
+regularity requirement.
+
+Use `equinox.filter_jit` or a JIT-compiled closure over the stepper.
+The test extra includes physverify for checking host-side NumPy errors
+after the JAX solve.
+
 ## Checklist
 
 - [ ] `_build_linear_operator` returns `L_k` with the correct sign convention

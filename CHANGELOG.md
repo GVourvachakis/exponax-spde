@@ -7,8 +7,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Experimental additive `sample_increment`, `step_with_increment` and
-  `coarsen_increments` methods support increment reuse and coupled paths.
+- Experimental `sample_increment`, `step_with_increment` and
+  `coarsen_increments` methods support additive and multiplicative increment
+  reuse and coupled paths.
+- The test extra includes physverify for host-side order checks.
 
 - `stochastic_structure_factor` computes the ensemble spectrum during rollout without
   storing the trajectories. [#11](https://github.com/GVourvachakis/exponax-spde/issues/11)
@@ -20,6 +22,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The spectrum utilities use the public `exponax.spectral.get_fourier_coefficients`.
 
 ### Changed (breaking)
+
+- Multiplicative noise uses correctly normalised Wiener increments and an
+  unprojected pointwise product. Milstein raises for non-trace-class noise
+  ($\alpha \le d/2$). See the [migration guide](docs/noise_model.md).
+  Reported by @rcgiri-physics in
+  [#4](https://github.com/GVourvachakis/exponax-spde/issues/4).
 
 - Additive noise uses the exact, correctly normalised stochastic convolution.
   The variance changes for a fixed `sigma`. See the
@@ -34,6 +42,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   [#14](https://github.com/GVourvachakis/exponax-spde/issues/14).
 
 ### Fixed
+
+- The multiplicative kick and the scalar-centred Milstein correction use the
+  same linear propagator.
 
 - Strongly damped additive modes stay finite under JIT when their
   deterministic propagator underflows.

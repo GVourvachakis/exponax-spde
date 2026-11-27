@@ -33,8 +33,13 @@ the Hermitian symmetry on DC and Nyquist planes. F_h uses the stored
 real symbol L_k, including when exp(hL_k) underflows. See
 docs/noise_model.md for the variance units and migration.
 
-The multiplicative path retains its legacy normalisation and Milstein
-correction pending #4b.
+Multiplicative noise
+────────────────────
+Draw a plain Wiener increment ΔŴ_k = sqrt(q_k Δt / dx^d) · FFT(ξ)_k.
+Multiply by σu at the step-start grid points and propagate the FFT of
+the kick by E_k. The optional Milstein kick is
+½σ²u(ΔW² − v_W), with scalar v_W = Δt mean_full(q) / dx^d, and uses the
+same propagator. The stochastic product uses collocation.
 """
 
 from __future__ import annotations
@@ -115,7 +120,7 @@ class StochasticAllenCahn(BaseStepper):
     - `noise_type`: Either ``"additive"`` (``σ(u) = σ``) or
         ``"multiplicative"`` (``σ(u) = σu``, linear / gradient-type).
         Defaults to ``"additive"``.
-    - `sigma`: For additive noise, the physical Q-Wiener amplitude ``σ ≥ 0``.
+    - `sigma`: The physical Q-Wiener amplitude ``σ ≥ 0``.
         Setting ``sigma=0`` recovers the deterministic Allen-Cahn solver; the output is
         then identical regardless of the PRNG key.  Defaults to ``0.1``.
     - `noise_alpha`: Spectral colour index ``α ≥ 0`` for the Q-Wiener
@@ -134,10 +139,9 @@ class StochasticAllenCahn(BaseStepper):
         reference (``exponax.stepper.reaction.AllenCahn``).  Defaults
         to ``True``.
     - `use_milstein`: Whether to add the first-order Milstein correction
-        for multiplicative noise.  Has no effect for additive noise.
-        Auto-disabled when ``noise_alpha=0`` because the iterated
-        stochastic integrals required for space-time white noise diverge.
-        Defaults to ``False``.
+        for multiplicative noise. Enabling it requires trace-class noise
+        (``noise_alpha > num_spatial_dims / 2``); the term is applied only
+        to multiplicative updates. Defaults to ``False``.
     - `order`: Must be ``1`` (exponential Euler–Maruyama, the default).
         Other values raise ``ValueError``. Higher-order stochastic
         exponential integrators are tracked in issue #14.
@@ -162,12 +166,16 @@ class StochasticAllenCahn(BaseStepper):
     u_batch = jax.vmap(lambda k: stepper(u0, key=k))(keys)
     ```
 
-    **Additive increments (experimental):**
+    **Increments (experimental)**
 
-    ``sample_increment(key)`` gives an exact additive stochastic convolution
-    in raw rFFT units. Replay it with ``step_with_increment(u_hat, increment)``.
-    On the fine stepper, ``coarsen_increments(increments)`` combines consecutive
-    draws along the leading axis for one longer step.
+    ``sample_increment(key)`` gives an additive stochastic convolution or
+    a σ-free multiplicative Wiener increment in raw rFFT units. Replay it
+    with ``step_with_increment(u_hat, increment)``. On the fine stepper,
+    ``coarsen_increments(increments)`` combines consecutive draws along the
+    leading axis for one longer step.
+
+    Compile methods with ``equinox.filter_jit`` or JIT a closure over the
+    stepper. Physverify runs only in tests, after the JAX solve.
 
     **References:**
 
@@ -495,12 +503,10 @@ class StochasticAllenCahn(BaseStepper):
         *,
         key: PRNGKeyArray,
     ) -> Complex[Array, "1 ... (N//2)+1"]:
-        """Perform one EEM step entirely in Fourier space.
+        """Perform an EEM step with Fourier-space input and output.
 
-        More efficient than ``__call__`` when the caller already holds the
-        Fourier representation and will consume the output in Fourier space
-        (e.g., custom rollout loops that never materialise the physical-space
-        field).
+        The multiplicative kick is evaluated on the physical grid. Use this
+        method when the caller already holds the Fourier representation.
 
         **Arguments:**
 
