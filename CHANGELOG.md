@@ -7,6 +7,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Warn on construction for continuum-unsafe additive and multiplicative
+  Euler–Maruyama noise with positive diffusion. The public
+  `NoiseRegularityWarning` category allows selective suppression (#8).
+
 - Ensemble utilities accept `batch_size`, and `stochastic_rollout`
   accepts a save `stride`.
   [#21](https://github.com/GVourvachakis/exponax-spde/issues/21)
@@ -20,6 +24,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   storing the trajectories. [#11](https://github.com/GVourvachakis/exponax-spde/issues/11)
 
 ### Changed
+
+- Reject negative `noise_alpha`, `sigma` and `diffusivity` (#8).
 
 - Richardson weak extrapolation retains only its final states.
   [#11](https://github.com/GVourvachakis/exponax-spde/issues/11)

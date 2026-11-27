@@ -61,11 +61,13 @@ from ._utils import (
     stack_sub_trajectories,
     wrap_bc,
 )
+from .stepper.stochastic import NoiseRegularityWarning
 
 __version__ = importlib.metadata.version("exponax-spde")
 
 __all__ = [
     "BaseStepper",
+    "NoiseRegularityWarning",
     "ForcedStepper",
     "RepeatedStepper",
     "derivative",
