@@ -32,7 +32,7 @@ Usage
         diffusivity=0.01, lambda_=1.0, sigma=0.1, noise_alpha=1.5,
     )
     trajectory = jax.jit(
-        spde.stochastic_rollout(stepper, T=500, include_init=True)
+        spde.stochastic_rollout(stepper, num_steps=500, include_init=True)
     )(u0, jax.random.PRNGKey(0))
 """
 
@@ -61,13 +61,14 @@ from ._utils import (
     stack_sub_trajectories,
     wrap_bc,
 )
-from .stepper.stochastic import NoiseRegularityWarning
+from .stepper.stochastic import NoiseRegularityWarning, StochasticAllenCahn
 
 __version__ = importlib.metadata.version("exponax-spde")
 
 __all__ = [
     "BaseStepper",
     "NoiseRegularityWarning",
+    "StochasticAllenCahn",
     "ForcedStepper",
     "RepeatedStepper",
     "derivative",

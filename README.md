@@ -82,13 +82,16 @@ stepper = spde.StochasticAllenCahn(
 u0 = ex.ic.GaussianRandomField(1, powerlaw_exponent=3.0)(128, key=jax.random.PRNGKey(0))
 
 # Single trajectory
-trajectory = jax.jit(spde.stochastic_rollout(stepper, T=500, include_init=True))(
-    u0, jax.random.PRNGKey(1)
-)  # shape (501, 1, 128)
+num_steps, num_samples = 500, 64
+trajectory = jax.jit(
+    spde.stochastic_rollout(stepper, num_steps=num_steps, include_init=True)
+)(u0, jax.random.PRNGKey(1))  # shape (501, 1, 128)
 
-# Ensemble of M=64 independent trajectories
+# Ensemble of 64 independent trajectories
 ensemble = jax.jit(
-    spde.stochastic_ensemble_rollout(stepper, T=500, M=64, include_init=False)
+    spde.stochastic_ensemble_rollout(
+        stepper, num_steps=num_steps, num_samples=num_samples, include_init=False
+    )
 )(u0, jax.random.PRNGKey(2))  # shape (64, 500, 1, 128)
 
 # Ensemble-averaged power spectrum S(k)
@@ -100,7 +103,8 @@ it with `jax.grad`, `jax.vmap`, and `jax.jit`:
 
 ```python
 # Gradient of final state w.r.t. initial condition
-grad_u0 = jax.grad(lambda u: jax.jit(stepper)(u, key=jax.random.PRNGKey(0)).sum())(u0)
+step_once = jax.jit(lambda field: stepper(field, key=jax.random.PRNGKey(0)))
+grad_u0 = jax.grad(lambda field: step_once(field).sum())(u0)
 ```
 
 <p align="center">
@@ -141,15 +145,15 @@ $Q_k \propto (1 + |k|^2_{\rm phys})^{-\alpha}$.
 **Special cases:**
 
 - `lambda_=0` → stochastic heat equation (analytically tractable invariant measure)
-- `sigma=0` → recovers `exponax.stepper.reaction.AllenCahn` to machine precision
+- `sigma=0` and `use_taming=False` → matches `exponax.stepper.reaction.AllenCahn` at the same drift settings
 
 **Calling convention** (PRNGKey required):
 
 ```python
-u_next = stepper(u, key=jax.random.PRNGKey(0))
+u_next = stepper(u0, key=jax.random.PRNGKey(0))
 
 # Batched over ensemble members:
-keys = jax.random.split(jax.random.PRNGKey(0), M)
+keys = jax.random.split(jax.random.PRNGKey(0), num_samples)
 u_batch = jax.vmap(lambda k: stepper(u0, key=k))(keys)
 ```
 
@@ -176,8 +180,8 @@ See the [performance and accelerator guide](docs/performance.md).
 
 | Function | Description |
 |----------|-------------|
-| `stochastic_rollout(stepper, T, *, include_init)` | Single trajectory via `jax.lax.scan`; JIT-compatible |
-| `stochastic_ensemble_rollout(stepper, T, M, *, include_init)` | $M$ independent trajectories via `jax.vmap` |
+| `stochastic_rollout(stepper, num_steps, *, include_init)` | Single trajectory via `jax.lax.scan`; JIT-compatible |
+| `stochastic_ensemble_rollout(stepper, num_steps, num_samples, *, include_init)` | $M$ independent trajectories via `jax.vmap` |
 | `structure_factor(ensemble, *, burn_in_fraction)` | Ensemble power spectrum $S(k) = \langle \vert \hat{u}_k \vert^2 \rangle$ |
 | `stochastic_structure_factor(stepper, num_steps, num_samples, *, burn_in_fraction)` | Accumulates the same spectrum during rollout with no stored trajectories |
 | `richardson_weak_extrapolation(stepper_coarse, stepper_fine, u0, num_steps_coarse, key, *, num_samples)` | Richardson extrapolation: $O(\Delta t) \to O(\Delta t^2)$ weak bias |
