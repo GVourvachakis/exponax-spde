@@ -48,6 +48,8 @@ https://doi.org/10.1007/s10208-015-9247-y.
 
 from __future__ import annotations
 
+import sys
+import warnings
 from typing import Literal
 
 import equinox as eqx
@@ -58,6 +60,23 @@ from jaxtyping import Array, Complex, Float, PRNGKeyArray
 
 from ..._base_stepper import BaseStepper
 from ...nonlin_fun import TamedPolynomialNonlinearFun
+
+
+class NoiseRegularityWarning(UserWarning):
+    """The finite-grid noise is too rough for the classical continuum model."""
+
+
+def _warn_noise_regularity(message: str) -> None:
+    # Equinox wraps construction in a version-dependent number of frames.
+    frame = sys._getframe()
+    stacklevel = 1
+    while frame is not None:
+        package = frame.f_globals.get("__name__", "").partition(".")[0]
+        if package not in {"equinox", "exponax_spde"}:
+            break
+        stacklevel += 1
+        frame = frame.f_back
+    warnings.warn(message, NoiseRegularityWarning, stacklevel=stacklevel)
 
 
 def phi1(z: Array) -> Array:
@@ -115,8 +134,9 @@ class StochasticAllenCahn(BaseStepper):
         in each dimension is the same. Hence, the total number of degrees of
         freedom is ``Nᵈ``.
     - `dt`: The timestep size ``Δt`` between two consecutive states.
-    - `diffusivity`: The interface width ``ν > 0``.  Smaller values produce
-        thinner, sharper interfaces.  Defaults to ``0.01``.
+    - `diffusivity`: The diffusion coefficient ``ν ≥ 0``. Smaller positive values
+        produce thinner interfaces. With ``ν = 0`` the model is a grid-level
+        SDE system with no continuum claim. Defaults to ``0.01``.
     - `lambda_`: The reaction rate ``λ ≥ 0``.  Setting ``lambda_=0``
         reduces the equation to the stochastic heat equation, whose
         nonzero modes have Gaussian invariant covariance ``C_k = Q_k/(2ν|k|²)``
@@ -126,11 +146,20 @@ class StochasticAllenCahn(BaseStepper):
         Defaults to ``"additive"``.
     - `sigma`: The physical Q-Wiener amplitude ``σ ≥ 0``.
         Setting ``sigma=0`` recovers the deterministic Allen-Cahn solver; the output is
-        then identical regardless of the PRNG key.  Defaults to ``0.1``.
+        then identical regardless of the PRNG key. Defaults to ``0.1``.
+        Negative values of ``sigma``, ``diffusivity`` or ``noise_alpha`` raise
+        ``ValueError``.
     - `noise_alpha`: Spectral colour index ``α ≥ 0`` for the Q-Wiener
         covariance ``Q_k ∝ (1 + |k|²_phys)^{-α}``.  ``α = 0`` gives
         space-time white noise; ``α > d/2`` gives a trace-class
-        (spatially smooth) noise.  Defaults to ``1.0``.
+        noise. With ``σ > 0``, ``ν > 0`` and ``d ≥ 2``, construction warns
+        with ``exponax_spde.NoiseRegularityWarning`` for additive and
+        multiplicative Euler–Maruyama noise when ``α ≤ d/2 - 1``.
+        See ``docs/noise_model.md`` for the continuum assumptions and how to
+        silence the warning for intentional finite-grid use. Each sign
+        check requires a concrete argument. A tracer in any of the three
+        noise parameters suppresses the constructor's regularity warning.
+        Validate those inputs before tracing. Defaults to ``1.0``.
     - `use_taming`: Whether to apply Hutzenthaler-Jentzen taming to the
         cubic nonlinear term
 
@@ -284,11 +313,42 @@ class StochasticAllenCahn(BaseStepper):
                 "tracked in #14."
             )
 
+        parameters = (
+            ("noise_alpha", noise_alpha),
+            ("sigma", sigma),
+            ("diffusivity", diffusivity),
+        )
+        for name, value in parameters:
+            if not isinstance(value, jax.core.Tracer) and value < 0:
+                raise ValueError(f"{name} must be non-negative, got {value}.")
+
         if use_milstein and noise_alpha <= num_spatial_dims / 2:
             raise ValueError(
                 "Milstein requires trace-class noise (noise_alpha > "
                 "num_spatial_dims / 2). See #8 for other noise regularity conditions."
             )
+
+        if (
+            num_spatial_dims >= 2
+            and not any(isinstance(value, jax.core.Tracer) for _, value in parameters)
+            and sigma != 0
+            and diffusivity > 0
+            and noise_alpha <= num_spatial_dims / 2 - 1
+        ):
+            if noise_type == "additive":
+                message = (
+                    "Additive noise with noise_alpha <= d/2 - 1 in d >= 2 has "
+                    "divergent continuum point variance. The finite-grid model "
+                    "is available. Continuum Allen–Cahn in this regime requires "
+                    "a separate renormalisation treatment (#8)."
+                )
+            else:
+                message = (
+                    "Multiplicative noise with noise_alpha <= d/2 - 1 in d >= 2 "
+                    "is too rough for the classical continuum pointwise product. "
+                    "This stepper simulates the finite-grid collocation model (#8)."
+                )
+            _warn_noise_regularity(message)
 
         # ── Store all fields before super().__init__ ───────────────────
         # BaseStepper.__init__ immediately calls _build_linear_operator
