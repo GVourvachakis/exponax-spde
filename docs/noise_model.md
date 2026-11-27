@@ -240,3 +240,34 @@ JAX transformation.
 [Noise correction #4](https://github.com/GVourvachakis/exponax-spde/issues/4) ·
 [Regularity #8](https://github.com/GVourvachakis/exponax-spde/issues/8) ·
 [Figure regeneration #17](https://github.com/GVourvachakis/exponax-spde/issues/17)
+
+## Weak extrapolation
+
+Richardson extrapolation estimates an expected terminal observable.
+At fixed spatial resolution and final time, suppose the observable has
+the expansion $E[P_h] = \mu + C h^p + O(h^{p+\delta})$ with a common
+leading coefficient and $\delta>0$. Combining $h$ and $h/2$ with weights
+$a=2^p/(2^p-1)$ and $-b=-1/(2^p-1)$ cancels the leading bias. Set
+`weak_order=p` and pass a pure JAX `observable` for nonlinear statistics.
+The expansion needs regularity of the noise, drift and observable. A
+weak convergence bound alone does not establish it.
+See [Talay & Tubaro (1990)](https://doi.org/10.1080/07362999008809220),
+[Wang (2016)](https://doi.org/10.3934/dcds.2016.36.481) and
+[Bréhier (2024)](https://doi.org/10.1137/22M152596X).
+
+For $M$ independent coarse and fine samples with marginal variances
+$V_c$ and $V_f$, the extrapolated mean has variance
+$(a^2 V_f + b^2 V_c)/M$. For paired observables $F,C$ sharing noise,
+the variance is $(a^2 V_f + b^2 V_c - 2ab\,\mathrm{Cov}(F,C))/M$.
+Set $a=b=1$ for the variance of the fine-minus-coarse mean. The
+reported standard errors use sample variances with `ddof=1`.
+See [Giles (2008)](https://doi.org/10.1287/opre.1070.0496).
+
+The independent sampler is the default. Prefer `coupled=True` for
+compatible stochastic steppers, which share Brownian paths through the
+experimental increment protocol. Coupling is especially useful for
+estimating the fine-minus-coarse correction. An observed correction
+below its sampling uncertainty gives an inconclusive order estimate.
+The validation notebook's weak-extrapolation comparison is tracked in
+[#17](https://github.com/GVourvachakis/exponax-spde/issues/17). It will
+display both samplers together, with the coupled estimate first.

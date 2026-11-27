@@ -22,8 +22,7 @@ stochastic_structure_factor(stepper, num_steps, num_samples, *, burn_in_fraction
     Accumulate the same structure factor directly during a stochastic rollout.
 
 richardson_weak_extrapolation(stepper_coarse, stepper_fine, u0, *, ...)
-    Combine runs at Δt and Δt/2 to boost the *weak* order by one via
-    Romberg extrapolation:  E_rich ≈ 2·E_fine - E_coarse.
+    Cancel the leading weak bias at Δt and Δt/2, with optional paired sampling.
 
 strang_split_step(spectral_stepper, ssa_step_fn, u, ssa_state, dt, key, *)
     Scaffold for operator-split hybrid SSA / spectral stepping
@@ -43,6 +42,7 @@ NOTE on what is NOT provided
 
 from __future__ import annotations
 
+import math
 import warnings
 from collections.abc import Callable
 
@@ -336,6 +336,41 @@ def stochastic_structure_factor(
 # ---------------------------------------------------------------------------
 
 
+def _validate_richardson_pair(coarse, fine):
+    methods = ("sample_increment", "step_with_increment", "coarsen_increments")
+    for name, stepper in (("coarse", coarse), ("fine", fine)):
+        for method in methods:
+            if not callable(getattr(stepper, method, None)):
+                raise ValueError(f"Coupled Richardson requires {name}.{method}().")
+        if getattr(stepper, "dt", None) is None:
+            raise ValueError(f"Coupled Richardson requires {name}.dt.")
+
+    traced_dt = any(isinstance(dt, jax.core.Tracer) for dt in (coarse.dt, fine.dt))
+    if not traced_dt and not math.isclose(
+        float(coarse.dt), 2.0 * float(fine.dt), rel_tol=1e-12
+    ):
+        raise ValueError("Coupled Richardson requires coarse dt == 2 × fine dt.")
+
+    for name in (
+        "num_spatial_dims",
+        "num_points",
+        "domain_extent",
+        "noise_type",
+        "sigma",
+        "noise_alpha",
+    ):
+        a = getattr(coarse, name, None)
+        b = getattr(fine, name, None)
+        if (
+            a is None
+            or b is None
+            or any(isinstance(v, jax.core.Tracer) for v in (a, b))
+        ):
+            continue
+        if a != b:
+            raise ValueError(f"Coupled Richardson requires matching {name}.")
+
+
 def richardson_weak_extrapolation(
     stepper_coarse: eqx.Module,
     stepper_fine: eqx.Module,
@@ -345,48 +380,53 @@ def richardson_weak_extrapolation(
     *,
     num_samples: int = 512,
     batch_size: int | None = None,
-) -> dict:
-    """Boost weak order via Romberg/Richardson extrapolation.
+    weak_order: float = 1.0,
+    coupled: bool = False,
+    observable: Callable[[Array], Array] | None = None,
+) -> dict[str, Array]:
+    """Extrapolate the expected value of a terminal observable.
 
-    Runs two independent ensembles at the same physical end-time
-    ``T = num_steps_coarse * Δt_coarse``:
+    Take `num_steps_coarse` coarse steps of size h and twice as many fine
+    steps of size h/2 from the same physical initial field `u0`. For a common
+    leading weak-bias term proportional to h**p, where p is `weak_order`,
+    the weighted estimate (2**p * mean_fine - mean_coarse) / (2**p - 1)
+    cancels that term. Pass a finite, positive `weak_order`.
 
-    - **Coarse**: ``stepper_coarse`` for ``num_steps_coarse`` steps at ``Δt``.
-    - **Fine**:   ``stepper_fine``   for ``2 * num_steps_coarse`` steps at
-        ``Δt/2`` (same wall-clock time T).
+    The default samples independent ensembles from `key`. Use
+    `coupled=True` with compatible stochastic steppers to share the
+    driving noise. The experimental protocol requires both steppers to
+    expose `dt` and implement `sample_increment(key)`,
+    `step_with_increment(u_hat, increment)` and
+    `coarsen_increments(increments)`. Use steppers for the same model.
+    The fine stepper coarsens each consecutive pair of fine increments.
+    With concrete time steps, the coarse step must be twice the fine step.
+    Concrete grid and noise settings must match wherever both expose them.
 
-    The Richardson extrapolated mean field is::
+    `num_samples` counts paths per ensemble, or pairs in coupled mode,
+    and must be at least two. `batch_size` bounds the number of paths or
+    pairs advanced at once. An optional pure JAX `observable` maps each
+    terminal physical field to a scalar or fixed-shape array. The default
+    uses the physical field itself.
 
-        E_rich[u(T)] ≈ 2·E_fine[u(T)] - E_coarse[u(T)]
-
-    which doubles the weak convergence order (e.g. order 1 → order 2
-    for additive noise with Q-Wiener forcing).
-
-    **Arguments:**
-
-    - `stepper_coarse`: Stepper at time step Δt.
-    - `stepper_fine`: Stepper at time step Δt/2 (same physical
-        parameters, half the ``dt``).
-    - `u0`: Initial condition, shape ``(1, *N)``.
-    - `num_steps_coarse`: Number of coarse steps T.
-    - `key`: Master PRNGKey; split internally for the two ensembles.
-    - `num_samples`: Monte-Carlo sample size M for both ensembles.
-    - `batch_size`: Number of paths advanced together. ``None`` uses the
-        full ensemble as one batch.
-
-    **Returns:**
-
-    A ``dict`` with keys:
-
-    - ``"mean_coarse"``, ``"mean_fine"``, ``"mean_rich"``: Ensemble-mean
-        final states.
-    - ``"var_coarse"``, ``"var_fine"``: Ensemble variance of the final
-        state.
+    The result contains `mean_coarse`, `mean_fine`, `mean_rich`,
+    `var_coarse` and `var_fine` (population variances), plus
+    `se_coarse`, `se_fine`, `se_rich` and `se_difference` (for the
+    fine-minus-coarse mean). Standard errors use sample variances
+    with ddof=1. In coupled mode, the last two use the paired samples
+    to account for covariance. All results are componentwise.
     """
     _validate_batch_size(batch_size)
+    if num_samples < 2:
+        raise ValueError("Richardson extrapolation requires num_samples >= 2.")
+    try:
+        finite_order = math.isfinite(weak_order)
+        weak_order = float(weak_order)
+    except (TypeError, ValueError, OverflowError) as error:
+        raise ValueError("weak_order must be finite and greater than zero.") from error
+    if not finite_order or weak_order <= 0:
+        raise ValueError("weak_order must be finite and greater than zero.")
     if num_steps_coarse == 0:
         raise IndexError("Cannot select a final state from a zero-step rollout.")
-    key_c, key_f = jax.random.split(key)
 
     def final_states(stepper, num_steps, key):
         def ensemble(u_init, ensemble_key):
@@ -399,22 +439,84 @@ def richardson_weak_extrapolation(
                 (final, _), _ = jax.lax.scan(
                     step, (u_init, path_key), None, length=num_steps
                 )
-                return final
+                return final if observable is None else observable(final)
 
             keys = jax.random.split(ensemble_key, num_samples)
             return _map_paths(one_path, (keys,), batch_size)
 
         return jax.jit(ensemble)(u0, key)
 
-    final_c = final_states(stepper_coarse, num_steps_coarse, key_c)
-    final_f = final_states(stepper_fine, 2 * num_steps_coarse, key_f)
+    if coupled:
+        _validate_richardson_pair(stepper_coarse, stepper_fine)
+        dims = u0.ndim - 1
+        points = u0.shape[-1]
+
+        @jax.jit
+        def paired_ensemble(u_init, ensemble_key):
+            u_hat = spectral.fft(u_init, num_spatial_dims=dims)
+
+            def one_pair(path_key):
+                def step(carry, _):
+                    coarse, fine, rng = carry
+                    rng, first_key = jax.random.split(rng)
+                    rng, second_key = jax.random.split(rng)
+                    first = stepper_fine.sample_increment(first_key)
+                    second = stepper_fine.sample_increment(second_key)
+                    coarse_increment = stepper_fine.coarsen_increments(
+                        jnp.stack((first, second))
+                    )
+                    coarse = stepper_coarse.step_with_increment(
+                        coarse, coarse_increment
+                    )
+                    fine = stepper_fine.step_with_increment(fine, first)
+                    fine = stepper_fine.step_with_increment(fine, second)
+                    return (coarse, fine, rng), None
+
+                (coarse, fine, _), _ = jax.lax.scan(
+                    step, (u_hat, u_hat, path_key), None, length=num_steps_coarse
+                )
+                coarse = spectral.ifft(coarse, num_spatial_dims=dims, num_points=points)
+                fine = spectral.ifft(fine, num_spatial_dims=dims, num_points=points)
+                if observable is None:
+                    return coarse, fine
+                return observable(coarse), observable(fine)
+
+            keys = jax.random.split(ensemble_key, num_samples)
+            return _map_paths(one_pair, (keys,), batch_size)
+
+        final_c, final_f = paired_ensemble(u0, key)
+    else:
+        key_c, key_f = jax.random.split(key)
+        final_c = final_states(stepper_coarse, num_steps_coarse, key_c)
+        final_f = final_states(stepper_fine, 2 * num_steps_coarse, key_f)
 
     mean_c = jnp.mean(final_c, axis=0)
     mean_f = jnp.mean(final_f, axis=0)
-    mean_rich = 2.0 * mean_f - mean_c
+    log_inverse_weight = -weak_order * math.log(2.0)
+    inverse_weight = math.exp(log_inverse_weight)
+    denominator = -math.expm1(log_inverse_weight)
 
+    def extrapolate(coarse, fine):
+        if weak_order == 1.0:
+            return 2.0 * fine - coarse
+        return fine + inverse_weight * (fine - coarse) / denominator
+
+    mean_rich = extrapolate(mean_c, mean_f)
     var_c = jnp.var(final_c, axis=0)
     var_f = jnp.var(final_f, axis=0)
+    sample_scale = math.sqrt(num_samples)
+
+    def standard_error(values):
+        return jnp.std(values, axis=0, ddof=1) / sample_scale
+
+    se_c = standard_error(final_c)
+    se_f = standard_error(final_f)
+    if coupled:
+        se_rich = standard_error(extrapolate(final_c, final_f))
+        se_difference = standard_error(final_f - final_c)
+    else:
+        se_rich = jnp.hypot(se_f, inverse_weight * se_c) / denominator
+        se_difference = jnp.hypot(se_f, se_c)
 
     return {
         "mean_coarse": mean_c,
@@ -422,6 +524,10 @@ def richardson_weak_extrapolation(
         "mean_rich": mean_rich,
         "var_coarse": var_c,
         "var_fine": var_f,
+        "se_coarse": se_c,
+        "se_fine": se_f,
+        "se_rich": se_rich,
+        "se_difference": se_difference,
     }
 
 
