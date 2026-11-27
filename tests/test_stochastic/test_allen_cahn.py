@@ -89,9 +89,9 @@ def _make_stochastic(p: dict, **kwargs) -> StochasticAllenCahn:
     )
 
 
-@pytest.mark.parametrize("order", [-1, 0, 2, 3, 4])
+@pytest.mark.parametrize("order", [-1, 0, 5, 9, 1.5])
 def test_unsupported_order(order):
-    with pytest.raises(ValueError, match="order=1"):
+    with pytest.raises(ValueError, match="order must be one of 1, 2, 3 or 4"):
         _make_stochastic(PARAMS_1D, order=order)
 
 
