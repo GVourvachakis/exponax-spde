@@ -58,7 +58,7 @@ dev = [
     "commitizen>=3.29.0", # CLI commit helper
 ]
 vape4d = ["vape4d"]
-test = ["jaxlib", "pytest>=7.0.0", "pytest-cov", "physverify>=0.9.1,<0.10"]
+test = ["jaxlib", "pytest>=7.0.0", "pytest-cov>=2.3.1", "physverify>=0.9.1,<0.10"]
 docs = [
     "mkdocs==1.6.1",
     "mkdocs-material==9.7.1",

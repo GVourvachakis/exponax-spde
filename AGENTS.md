@@ -75,6 +75,12 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
   primary. Verification tests use only the public `exponax_spde` API and installed
   `exponax`, so they are independent of the vendored modules (#3).
 
+- Match the fingerprint hashes exactly within the same environment. After changing the
+  locked environment, compare the arrays case by case and require a normwise relative
+  difference of at most `1e-12`: divide the maximum absolute difference by the maximum
+  absolute reference value in that case. An all-zero reference must match exactly.
+  Report the maximum absolute difference. Never gate on elementwise relative difference.
+
 - Back every variance, scaling or convergence-order claim with a statistical test
   against an analytical reference. Include the derivation in the test docstring.
 - Use two-sided acceptance bands for convergence orders. For Monte Carlo slopes,
