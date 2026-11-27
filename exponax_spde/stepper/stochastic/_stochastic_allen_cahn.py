@@ -87,16 +87,27 @@ from typing import Literal
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from exponax import spectral
 from jaxtyping import Array, Complex, Float, PRNGKeyArray
 
 from ..._base_stepper import BaseStepper
 from ..._spectral import (
-    build_derivative_operator,
     build_scaling_array,
     fft,
     ifft,
 )
 from ...nonlin_fun import TamedPolynomialNonlinearFun
+
+
+def phi1(z: Array) -> Array:
+    """Evaluate (exp(z) - 1) / z with the analytic limit and gradient at zero."""
+    z = jnp.asarray(z, dtype=jnp.result_type(z, 1.0))
+    # The degree-four series is within round-off on this interval.
+    small = jnp.abs(z) < jnp.finfo(z.dtype).eps ** 0.25
+    safe = jnp.where(small, 1, z)
+    t = jnp.where(small, z, 0)
+    series = 1 + t * (1 / 2 + t * (1 / 6 + t * (1 / 24 + t / 120)))
+    return jnp.where(small, series, jnp.expm1(safe) / safe)
 
 
 def _spatial_shape(num_spatial_dims: int, num_points: int) -> tuple[int, ...]:
@@ -279,6 +290,8 @@ class StochasticAllenCahn(BaseStepper):
     #                   Multiplicative noise: σ-free; σ enters exactly
     #                   once via the u · dW product, preventing the
     #                   σ-double-counting bug of an earlier version.
+    _linear_symbol: Array
+    _propagator: Array
     _noise_std: Array  # shape (1, *wavenumber_shape)
     _noise_std_base: Array  # shape (1, *wavenumber_shape)
 
@@ -328,9 +341,16 @@ class StochasticAllenCahn(BaseStepper):
         # ── Precompute noise spectral arrays ───────────────────────────
         # BaseStepper builds and discards derivative_operator locally;
         # we recompute it here via the same pure function.
-        deriv_op = build_derivative_operator(
+        deriv_op = spectral.build_derivative_operator(
             num_spatial_dims, domain_extent, num_points
         )
+        linear = self._build_linear_operator(deriv_op)
+        self._linear_symbol = eqx.error_if(
+            linear.real,
+            jnp.any(linear.imag != 0),
+            "The Allen–Cahn linear symbol must be real.",
+        )
+        self._propagator = jnp.exp(dt * self._linear_symbol)
         # Physical wavenumber squared: |k|²_phys = -∑ᵢ (∂/∂xᵢ)²_k (real part)
         k_sq = -jnp.sum(deriv_op**2, axis=0, keepdims=True).real  # (1, *wn)
         dx_d = (domain_extent / num_points) ** num_spatial_dims
