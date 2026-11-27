@@ -11,7 +11,12 @@ from exponax_spde.stepper.stochastic import StochasticAllenCahn
 
 @pytest.mark.parametrize("batch_size", [1, 3, 7])
 def test_batch_size_preserves_ensemble_statistics(batch_size):
-    """Seven paths exercise the remainder, including exact raw trajectories."""
+    """Seven paths exercise the remainder at the same seed and grid.
+
+    XLA can round the step arithmetic differently at different batch
+    widths. Use 1e-12 relative to compare the resulting float64 paths
+    and statistics.
+    """
     n, samples, steps = 8, 7, 6
     x = jnp.arange(n, dtype=jnp.float64) / n
     initial = (0.3 + 0.1 * jnp.sin(2 * jnp.pi * (x[:, None] + x[None, :])))[None]
@@ -35,7 +40,7 @@ def test_batch_size_preserves_ensemble_statistics(batch_size):
     actual, batched_spectrum, batched_estimates = run(batch_size)
     error = np.max(np.abs(np.asarray(actual) - np.asarray(expected)))
     print(f"batch_size={batch_size}: trajectory max absolute difference={error:.9g}")
-    np.testing.assert_array_equal(actual, expected)
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=0)
 
     def relative_error(observed, reference):
         ref = np.asarray(reference)
