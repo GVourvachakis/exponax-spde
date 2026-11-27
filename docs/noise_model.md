@@ -187,8 +187,56 @@ illustration, match the conditional one-step variance at its initial
 field if the legacy noise level matters. Such a match preserves one
 aggregate variance and can leave different modal power and mean.
 
-Continuum regularity warnings and updated validation figures have
-separate issues.
-[Noise correction #4](https://github.com/GVourvachakis/exponax-spde/issues/4),
-[regularity #8](https://github.com/GVourvachakis/exponax-spde/issues/8),
-[figure regeneration #17](https://github.com/GVourvachakis/exponax-spde/issues/17)
+## Continuum noise regularity
+
+At positive diffusivity, the linear heat convolution has high-mode
+variance proportional to $|k|^{-2\alpha-2}$. A shell at radius $r$ contains
+order $r^{d-1}$ modes, so the continuum point variance is finite if
+$\alpha > d/2 - 1$. At equality it diverges logarithmically with the grid
+cutoff. Below the threshold the divergence is algebraic. This condition
+concerns the linear covariance. Nonlinear continuum models have additional
+regularity assumptions.
+
+For $d\ge2$, $\sigma>0$, $\nu>0$ and $\alpha \le d/2 - 1$, the constructor
+emits `exponax_spde.NoiseRegularityWarning` for both additive and
+multiplicative Euler–Maruyama noise. In particular, space-time white
+noise in continuum Allen–Cahn in 2-D and 3-D requires renormalisation.
+[Da Prato & Debussche (2003)](https://doi.org/10.1214/aop/1068646370) ·
+[Hairer (2014)](https://doi.org/10.1007/s00222-014-0505-4) ·
+[Hairer, Ryser & Weber (2012)](https://doi.org/10.1214/EJP.v17-1731)
+
+In the rough multiplicative regime the finite-grid collocation product
+has no classical continuum pointwise interpretation. The critical 2-D
+stochastic heat flow illustrates this issue in a linear multiplicative
+model with space-time noise and critical scaling.
+[Caravenna, Sun & Zygouras (2023)](https://doi.org/10.1007/s00222-023-01184-7)
+
+The warnings leave the finite-grid algorithm available. Suppress the
+category locally for an intentional finite-grid experiment:
+
+```python
+import warnings
+from exponax_spde import NoiseRegularityWarning
+from exponax_spde.stepper.stochastic import StochasticAllenCahn
+
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=NoiseRegularityWarning)
+    stepper = StochasticAllenCahn(2, 1.0, 32, 0.001, noise_alpha=0.0)
+```
+
+Warnings occur at construction only. With $\sigma=0$ there is no
+stochastic forcing. With $\nu=0$ the model is a grid-level SDE system with
+no continuum claim and no regularity warning. Negative `noise_alpha`,
+`sigma` and `diffusivity` raise `ValueError`. Enabling Milstein always
+requires trace-class noise ($\alpha>d/2$) and raises `ValueError`
+otherwise.
+
+The sign checks accept Python scalars and concrete JAX scalar arrays.
+During transformations that construct the stepper, a traced argument
+skips its sign check. The regularity warning requires all three
+arguments to be concrete. Validate traced inputs before applying the
+JAX transformation.
+
+[Noise correction #4](https://github.com/GVourvachakis/exponax-spde/issues/4) ·
+[Regularity #8](https://github.com/GVourvachakis/exponax-spde/issues/8) ·
+[Figure regeneration #17](https://github.com/GVourvachakis/exponax-spde/issues/17)
