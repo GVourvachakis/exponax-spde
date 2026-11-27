@@ -43,6 +43,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The hybrid Strang scaffold now preserves conjugate low Fourier modes
+  in 1–3 dimensions and validates both SSA concentration increments.
+  Passing `domain_extent` is deprecated and has no effect.
+  [#7](https://github.com/GVourvachakis/exponax-spde/issues/7)
+
 - The multiplicative kick and the scalar-centred Milstein correction use the
   same linear propagator.
 
