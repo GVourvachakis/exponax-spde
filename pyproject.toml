@@ -32,9 +32,9 @@ keywords = [
 dependencies = [
     "exponax>=0.2.0,<0.3",
     "jax>=0.6.2",
-    "jaxtyping>=0.2.20",
+    "jaxtyping>=0.2.33",
     "typing_extensions>=4.5.0",
-    "equinox>=0.11.3",
+    "equinox>=0.12.2",
     "matplotlib>=3.8.1",
 ]
 
@@ -58,7 +58,7 @@ dev = [
     "commitizen>=3.29.0", # CLI commit helper
 ]
 vape4d = ["vape4d"]
-test = ["jaxlib", "pytest", "pytest-cov", "physverify>=0.9.1,<0.10"]
+test = ["jaxlib", "pytest>=7.0.0", "pytest-cov", "physverify>=0.9.1,<0.10"]
 docs = [
     "mkdocs==1.6.1",
     "mkdocs-material==9.7.1",
