@@ -498,6 +498,31 @@ class StochasticAllenCahn(BaseStepper):
             )
         return super().step_fourier(u_hat) + increment
 
+    def coarsen_increments(
+        self, increments: Complex[Array, "r 1 ... (N//2)+1"]
+    ) -> Complex[Array, "1 ... (N//2)+1"]:
+        """Combine r consecutive additive increments for a step r times as long.
+
+        Call this on the fine stepper. Each increment is propagated for the
+        fine steps that follow it. The leading axis must have length r ≥ 2.
+        """
+        amplitude = self._additive_amplitude
+        if amplitude is None:
+            raise NotImplementedError(
+                "coarsen_increments for multiplicative noise is pending #4b."
+            )
+        if increments.shape[1:] != amplitude.shape or increments.shape[0] < 2:
+            raise ValueError(
+                f"Expected r >= 2 increments each of shape {amplitude.shape}, "
+                f"got {increments.shape}."
+            )
+
+        def propagate(total, increment):
+            return self._propagator * total + increment, None
+
+        total, _ = jax.lax.scan(propagate, increments[0], increments[1:])
+        return total
+
     # ── Core EEM step ──────────────────────────────────────────────────
 
     def _stochastic_step(
