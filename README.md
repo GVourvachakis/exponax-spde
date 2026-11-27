@@ -228,7 +228,7 @@ of the double-well potential.*
 | 8 | 2-D snapshots, animation, radial PSD and coarsening ($k_{\rm int} = \sqrt{\lambda/\nu}$) |
 | 9 | 3-D volume rendering (`vape4d` optional) |
 | 10 | Strong convergence: measured slope vs $\Delta t^{0.5}$; path-coupling caveat |
-| 11 | Milstein vs EEM: weak-error slopes and per-step timing |
+| 11 | Milstein vs EEM: coupled strong orders and per-step timing |
 | 12 | Richardson weak extrapolation: bias reduction |
 | 13 | Hybrid SSA scaffold (`strang_split_step` with OU sub-step) |
 | 14 | Summary table: all measured vs expected quantities with ✓/✗ |
@@ -290,14 +290,14 @@ See `docs/extending.md` for a step-by-step template.
 
 ## References
 
-- Allen, S. M., & Cahn, J. W. (1979). *Acta Metallurgica*, 27(6), 1085–1095.
-- Lord, G. J., Powell, C. E., & Shardlow, T. (2014). *An Introduction to Computational Stochastic PDEs*. Cambridge University Press.
-- Jentzen, A., & Kloeden, P. E. (2009a). *Proceedings of the Royal Society A*, 465(2102), 649–667.
-- Hutzenthaler, M., & Jentzen, A. (2015). *Memoirs of the American Mathematical Society*, 236(1112).
-- Cox, S. M., & Matthews, P. C. (2002). *Journal of Computational Physics*, 176(2), 430–455.
-- Kassam, A.-K., & Trefethen, L. N. (2005). *SIAM Journal on Scientific Computing*, 26(4), 1214–1233.
-- Strang, G. (1968). *SIAM Journal on Numerical Analysis*, 5(3), 506–517.
-- Gillespie, D. T. (1977). *The Journal of Physical Chemistry*, 81(25), 2340–2361.
+- Allen, S. M., & Cahn, J. W. (1979). *Acta Metallurgica*, 27(6), 1085–1095. [DOI](https://doi.org/10.1016/0001-6160(79)90196-2)
+- Lord, G. J., Powell, C. E., & Shardlow, T. (2014). *An Introduction to Computational Stochastic PDEs*. Cambridge University Press. [DOI](https://doi.org/10.1017/CBO9781139017329)
+- Jentzen, A., & Kloeden, P. E. (2009a). *Proceedings of the Royal Society A*, 465(2102), 649–667. [DOI](https://doi.org/10.1098/rspa.2008.0325)
+- Hutzenthaler, M., & Jentzen, A. (2015). *Memoirs of the American Mathematical Society*, 236(1112). [DOI](https://doi.org/10.1090/memo/1112)
+- Cox, S. M., & Matthews, P. C. (2002). *Journal of Computational Physics*, 176(2), 430–455. [DOI](https://doi.org/10.1006/jcph.2002.6995)
+- Kassam, A.-K., & Trefethen, L. N. (2005). *SIAM Journal on Scientific Computing*, 26(4), 1214–1233. [DOI](https://doi.org/10.1137/S1064827502410633)
+- Strang, G. (1968). *SIAM Journal on Numerical Analysis*, 5(3), 506–517. [DOI](https://doi.org/10.1137/0705041)
+- Gillespie, D. T. (1977). *The Journal of Physical Chemistry*, 81(25), 2340–2361. [DOI](https://doi.org/10.1021/j100540a008)
 
 ---
 
@@ -307,12 +307,13 @@ If you use this package in your research, please cite the upstream `exponax` pap
 and this repository:
 
 ```bibtex
-@article{koehler2024apebench,
-  title={{APEBench}: A Benchmark for Autoregressive Neural Emulators of {PDE}s},
+@inproceedings{koehler2024apebench,
+  title={{APEBench}: A Benchmark for Autoregressive Neural Emulators of {PDEs}},
   author={Felix Koehler and Simon Niedermayr and R{\"u}diger Westermann and Nils Thuerey},
-  journal={Advances in Neural Information Processing Systems (NeurIPS)},
-  volume={38},
-  year={2024}
+  booktitle={Advances in Neural Information Processing Systems},
+  volume={37},
+  year={2024},
+  doi={10.52202/079017-3822}
 }
 
 @software{vourvachakis2026exponaxspde,
