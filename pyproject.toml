@@ -108,7 +108,7 @@ exclude_lines = [
 ]
 
 [tool.pytest.ini_options]
-markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')", "gpu: requires a JAX GPU device"]
 
 [dependency-groups]
 dev = ["pre-commit (>=4.5.1,<5.0.0)", "commitizen (>=4.13.8,<5.0.0)"]

@@ -112,3 +112,26 @@ set `JAX_COMPILATION_CACHE_DIR` to a user-owned directory. The
 `jax_persistent_cache_min_entry_size_bytes` control which executables
 are written. Fix shapes, dtypes and rollout parameters where practical.
 [JAX persistent compilation cache](https://docs.jax.dev/en/latest/persistent_compilation_cache.html)
+
+## Run the smoke checks on a Colab GPU
+
+1. In Colab, choose **Runtime → Change runtime type** and select a GPU
+   such as T4 if a free GPU is available.
+2. In a fresh notebook cell, install the CUDA build of JAX and the
+   project from main. Restart the runtime after installation if JAX
+   has already been imported.
+
+   ```ipython
+   %pip install -U "jax[cuda12]" "git+https://github.com/GVourvachakis/exponax-spde.git@main"
+   ```
+
+3. Download and run the script in a fresh float32 process.
+
+   ```ipython
+   !curl -fsSL https://raw.githubusercontent.com/GVourvachakis/exponax-spde/main/scripts/gpu_smoke.py -o /tmp/exponax_gpu_smoke.py
+   !env -u JAX_ENABLE_X64 python /tmp/exponax_gpu_smoke.py
+   ```
+
+4. Confirm the printed device is a GPU and paste the device list,
+   analytical checks and median throughput into
+   [issue #21](https://github.com/GVourvachakis/exponax-spde/issues/21).
