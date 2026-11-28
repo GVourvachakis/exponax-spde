@@ -318,6 +318,8 @@ See `docs/extending.md` for a step-by-step template.
 If you use this package in your research, please cite the upstream `exponax` paper
 and this repository:
 
+[Concept DOI, all versions](https://doi.org/10.5281/zenodo.24628654).
+
 ```bibtex
 @inproceedings{koehler2024apebench,
   title={{APEBench}: A Benchmark for Autoregressive Neural Emulators of {PDEs}},

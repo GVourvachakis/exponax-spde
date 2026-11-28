@@ -10,6 +10,10 @@ version: "0.2.0"
 date-released: "2026-11-28"
 license: MIT
 repository-code: "https://github.com/GVourvachakis/exponax-spde"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.24628654"
+    description: "Concept DOI, all versions"
 keywords:
   - stochastic partial differential equations
   - Allen–Cahn equation
