@@ -1,6 +1,6 @@
 # Stochastic Allen–Cahn validation
 
-Notebook commit `1b9b48eeae6ef409f74a306e4e58716a9ec7c493` · library tree `6e7d6071089788dc51514a206d931b92f44c2cad` · 2026-11-28 · Python 3.12.3, jax 0.12.1, jaxlib 0.12.1, numpy 2.5.5, exponax 0.2.1, exponax-spde 0.1.0 · CPU float64.
+Notebook commit `e48dc7054125a5b5c162cd45a65d958c159c0634` · library tree `5a9d3bc1a4a647c470cf5ad1c3d8593547f01a3e` · 2026-11-28 · Python 3.12.3, jax 0.12.1, jaxlib 0.12.1, numpy 2.5.5, exponax 0.2.1, exponax-spde 0.3.0.dev0 · CPU float64.
 
 PASS meets the gate · INCONCLUSIVE leaves a signal or resolution unresolved · DIAGNOSTIC is descriptive · FAIL misses the gate.
 
