@@ -3,7 +3,7 @@
 All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.2.0] - Unreleased
+## [0.2.0] - 2026-11-28
 
 ### Changed
 
@@ -50,11 +50,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Ensemble rollouts accept `stride`. Higher-order drift with taming emits
   a public, selectively filterable `TamingOrderWarning`.
   [PR #38](https://github.com/GVourvachakis/exponax-spde/pull/38).
-
 - Citation metadata in `CITATION.cff`.
 - Release automation builds and smoke-tests distributions before deploying
   to TestPyPI and PyPI through Trusted Publishing.
-
 - Experimental additive and multiplicative increment APIs support replay,
   coarsening and coupled paths.
   [#4](https://github.com/GVourvachakis/exponax-spde/issues/4),
@@ -100,7 +98,6 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   [PR #26](https://github.com/GVourvachakis/exponax-spde/pull/26).
 - Corrected the README rollout, ensemble and gradient examples.
   [PR #34](https://github.com/GVourvachakis/exponax-spde/pull/34).
-
 - Regenerated the notebook and four README figures with the corrected noise
   model and added a text-only validation summary. [#17](https://github.com/GVourvachakis/exponax-spde/issues/17),
   [PR #37](https://github.com/GVourvachakis/exponax-spde/pull/37).

@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "exponax-spde"
-version = "0.2.0rc1"
+version = "0.2.0"
 description = "Stochastic PDE solvers built on top of Exponax."
 readme = "README.md"
 requires-python = ">=3.10"

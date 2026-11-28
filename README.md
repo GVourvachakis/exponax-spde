@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/imgs/logo_exponax_spde.svg" alt="exponax logo" width="300">
+  <img src="docs/imgs/logo_exponax_spde.svg" alt="exponax-spde logo" width="300">
 </p>
 <h4 align="center">Stochastic PDE solvers built on top of <a href="https://github.com/Ceyron/exponax" target="_blank">Exponax</a>.</h4>
 
@@ -30,6 +30,12 @@ infrastructure, ensemble utilities, and hybrid coupling tools that deterministic
 ## Installation
 
 ```bash
+pip install exponax-spde
+```
+
+To install the latest main:
+
+```bash
 pip install "exponax-spde @ git+https://github.com/GVourvachakis/exponax-spde"
 ```
 
@@ -48,7 +54,7 @@ Requires Python 3.10+, JAX 0.6.2+, and exponax >=0.2.0,<0.3.
 For 3-D volume rendering in the validation notebook (optional):
 
 ```bash
-pip install "exponax-spde[vape4d] @ git+https://github.com/GVourvachakis/exponax-spde"
+pip install "exponax-spde[vape4d]"
 ```
 
 ---
@@ -115,11 +121,18 @@ grad_u0 = jax.grad(lambda field: step_once(field).sum())(u0)
        alt="1-D evolution" width="500">
 </p>
 
-*1-D candidate A, illustration, not validation evidence. The unit interval
-uses N=256, Δt=0.001, ν=0.0005, λ=1.0, σ=0.05 and α=0 with ETDRK1 and
-taming off. The initial field is 0.10 + 0.9·GRF (power 0.5, zero mean,
-key 10). Rollout key 11. Save every 25 steps (0.025 time units) to t=7.5
-and display 301 frames at 50 ms per frame.*
+*Illustration, not validation evidence. 1-D stochastic Allen–Cahn driven by space-time white noise (α=0): a slightly biased disordered start orders into red and blue domains whose walls wander and merge (Funaki 1995). N=256, Δt=0.001, ν=0.0005, λ=1, σ=0.05, ETDRK1 without taming. Initial field 0.10 + 0.9·GRF (power 0.5, zero mean, key 10); rollout key 11; frames every 0.025 time units to t=7.5.*
+
+<p align="center">
+  <img src="docs/imgs/stochastic_allen_cahn_2d_evolution.png"
+       alt="2-D snapshots at t=0, 0.5, 2.5 and 10" width="500">
+  &nbsp;
+  <img src="docs/imgs/stochastic_allen_cahn_2d_animation.gif"
+       alt="2-D Allen-Cahn coarsening animation"
+       width="500">
+</p>
+
+*Illustration, not validation evidence. Curvature-driven coarsening (Allen & Cahn 1979; Bray 1994): from a disordered start with a slight positive bias, blue islands shrink and the red phase grows from 75% to 85% of the domain. N=256 per axis, Δt=0.001, ν=0.0008, λ=10, σ=0.12, α=0.5, ETDRK1 with taming. Initial field 0.15 + 0.8·GRF (power 2.5, zero mean, key 20); rollout key 21; frames every 0.1 time units to t=10; snapshots at t=0, 0.5, 2.5 and 10.*
 
 ---
 
@@ -213,22 +226,6 @@ compares the solvers with analytical predictions. Its text-only
 [validation summary](docs/validation_summary.md) reports the measured
 verdicts and uncertainty.
 
-<p align="center">
-  <img src="docs/imgs/stochastic_allen_cahn_2d_evolution.png"
-       alt="2-D space-time evolution" width="500">
-  &nbsp;
-  <img src="docs/imgs/stochastic_allen_cahn_2d_animation.gif"
-       alt="2-D Allen-Cahn coarsening animation"
-       width="500">
-</p>
-
-*2-D candidate V, illustration, not validation evidence. The unit square
-uses N=256 per axis, Δt=0.001, ν=0.0008, λ=10, σ=0.12 and α=0.5 with
-ETDRK1 and taming on. The initial field is 0.15 + 0.8·GRF (power 2.5,
-zero mean, key 20). Rollout key 21. Save every 100 steps (0.1 time units)
-to t=10 and display 101 frames at 80 ms per frame. The PNG shows t=0,
-0.5, 2.5 and 10.*
-
 | Section | Experiment |
 | --- | --- |
 | 1 | Bit-exact deterministic parity with exponax ETDRK1 |
@@ -287,15 +284,24 @@ See `docs/extending.md` for a step-by-step template.
 
 ## Known Limitations
 
-1. **Continuum regularity**: 2-D and 3-D white-noise Allen–Cahn needs
-   renormalisation in the continuum. The finite-grid stepper and planned
-   warnings are discussed in [#8](https://github.com/GVourvachakis/exponax-spde/issues/8).
+1. **Continuum regularity**: The stepper emits `NoiseRegularityWarning` at
+   construction for additive or multiplicative noise when `num_spatial_dims >= 2`,
+   the noise parameters are concrete, `sigma != 0`, `diffusivity > 0` and
+   `noise_alpha <= num_spatial_dims / 2 - 1`. In this regime the additive
+   continuum model requires renormalisation (Hairer, Ryser & Weber 2012), and
+   the multiplicative continuum pointwise product is too rough. The stepper
+   simulates a finite-grid model.
+   [#8](https://github.com/GVourvachakis/exponax-spde/issues/8),
+   [PR #25](https://github.com/GVourvachakis/exponax-spde/pull/25).
 2. **Hybrid SSA**: the Python SSA callback limits JIT compilation across steps.
 
 ---
 
 ## References
 
+- Funaki, T. (1995). *Probability Theory and Related Fields*, 102(2), 221–288. [DOI](https://doi.org/10.1007/BF01213390)
+- Bray, A. J. (1994). *Advances in Physics*, 43(3), 357–459. [DOI](https://doi.org/10.1080/00018739400101505)
+- Hairer, M., Ryser, M., & Weber, H. (2012). *Electronic Journal of Probability*, 17, 1–14. [DOI](https://doi.org/10.1214/EJP.v17-1731)
 - Allen, S. M., & Cahn, J. W. (1979). *Acta Metallurgica*, 27(6), 1085–1095. [DOI](https://doi.org/10.1016/0001-6160(79)90196-2)
 - Lord, G. J., Powell, C. E., & Shardlow, T. (2014). *An Introduction to Computational Stochastic PDEs*. Cambridge University Press. [DOI](https://doi.org/10.1017/CBO9781139017329)
 - Jentzen, A., & Kloeden, P. E. (2009a). *Proceedings of the Royal Society A*, 465(2102), 649–667. [DOI](https://doi.org/10.1098/rspa.2008.0325)
@@ -326,6 +332,7 @@ and this repository:
   author = {Vourvachakis, Georgios},
   title  = {exponax-spde: Stochastic PDE solvers built on top of exponax},
   year   = {2026},
+  version = {0.2.0},
   url    = {https://github.com/GVourvachakis/exponax-spde},
 }
 ```

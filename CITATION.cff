@@ -5,8 +5,9 @@ type: software
 authors:
   - given-names: Georgios
     family-names: Vourvachakis
-    # orcid: "https://orcid.org/0000-0000-0000-0000"
-version: "0.2.0rc1"
+    orcid: "https://orcid.org/0009-0003-4940-4508"
+version: "0.2.0"
+date-released: "2026-11-28"
 license: MIT
 repository-code: "https://github.com/GVourvachakis/exponax-spde"
 keywords:
