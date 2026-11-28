@@ -1,9 +1,8 @@
 from collections.abc import Sequence
 
 import jax.numpy as jnp
+from exponax.nonlin_fun import BaseNonlinearFun
 from jaxtyping import Array, Complex
-
-from ._base import BaseNonlinearFun
 
 
 class TamedPolynomialNonlinearFun(BaseNonlinearFun):

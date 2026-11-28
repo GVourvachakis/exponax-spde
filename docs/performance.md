@@ -69,7 +69,7 @@ import numpy as np
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
 from exponax_spde import stochastic_rollout
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 devices = np.asarray(jax.local_devices())
 mesh = Mesh(devices, ("path",))

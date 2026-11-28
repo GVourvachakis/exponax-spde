@@ -12,14 +12,16 @@
   <a href="#validation">Validation</a> • <a href="#tests">Tests</a> • <a href="#extending-to-new-spdes">Extensions</a> • <a href="#known-limitations">Limitations</a> • <a href="#references">References</a> • <a href="#citation">Citation</a>
 </p>
 
-`exponax-spde` extends the [Exponax](https://github.com/Ceyron/exponax) library
-with first-class support for stochastic partial differential equations (SPDEs).
+`exponax-spde` is a stochastic PDE add-on that installs with
+[Exponax](https://github.com/Ceyron/exponax). Import deterministic solvers,
+initial conditions, spectral utilities and visualisation from `exponax`.
 It follows `exponax`'s design philosophy. Every stochastic stepper is a
 differentiable [Equinox](https://github.com/patrick-kidger/equinox) Module,
 JIT-compilable, vmappable, and GPU/TPU-ready, while adding the noise
 infrastructure, ensemble utilities, and hybrid coupling tools that deterministic `exponax` does not need.
 
-> **Note**: this package requires `exponax >= 0.2.0` as a dependency.
+> **Note**: this package requires `exponax>=0.2.1,<0.3`.
+> See the [0.3 migration guide](docs/migration-0.3.md) for import changes.
 > It was developed following Felix Köhler's suggestion to build custom SPDE
 > solvers *on top of* exponax rather than inside it.
 > See the related [exponax PR #101](https://github.com/Ceyron/exponax/pull/101)
@@ -44,17 +46,17 @@ For development, use Poetry 2.4.2 with the committed dependency lock:
 ```bash
 git clone https://github.com/GVourvachakis/exponax-spde.git
 cd exponax-spde
-poetry install -E dev -E test -E docs
+poetry install -E dev -E test
 ```
 
-Requires Python 3.10+, JAX 0.6.2+, and exponax >=0.2.0,<0.3.
+Requires Python 3.10+, JAX 0.6.2+, and exponax >=0.2.1,<0.3.
 
 👉 [JAX install guide](https://jax.readthedocs.io/en/latest/installation.html)
 
 For 3-D volume rendering in the validation notebook (optional):
 
 ```bash
-pip install "exponax-spde[vape4d]"
+pip install "exponax[vape4d]"
 ```
 
 ---
@@ -267,16 +269,16 @@ The test extra includes physverify for host-side convergence checks.
 
 ## Extending to New SPDEs
 
-The `stochastic/` subpackage is designed to accept future additions.
+The `stepper` subpackage provides the stochastic steppers.
 To add a new SPDE stepper (e.g. stochastic Kuramoto-Sivashinsky):
 
-1. Create `exponax_spde/stepper/stochastic/_stochastic_ks.py`
-2. Subclass `BaseStepper` from `exponax_spde`
+1. Create `exponax_spde/stepper/_stochastic_ks.py`
+2. Subclass `BaseStepper` from `exponax`
 3. Implement `_build_linear_operator` and `_build_nonlinear_fun`
 4. Use `TamedPolynomialNonlinearFun` if the nonlinearity grows super-linearly
 5. Disable `step()`, require a PRNGKey in `__call__`
 6. Add a `TestDeterministicLimit` class as a first sanity check
-7. Export from `exponax_spde/stepper/stochastic/__init__.py`
+7. Export from `exponax_spde/stepper/__init__.py`
 
 See `docs/extending.md` for a step-by-step template.
 

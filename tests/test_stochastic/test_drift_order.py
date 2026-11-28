@@ -15,7 +15,7 @@ from exponax_spde import (
     richardson_weak_extrapolation,
     stochastic_ensemble_rollout,
 )
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 ORDERS = (1, 2, 3, 4)
 T = 0.5

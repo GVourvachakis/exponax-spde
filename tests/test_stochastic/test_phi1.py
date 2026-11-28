@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from exponax_spde.stepper.stochastic._stochastic_allen_cahn import phi1
+from exponax_spde.stepper import phi1
 
 
 @pytest.mark.parametrize(

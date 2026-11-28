@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from exponax_spde import NoiseRegularityWarning
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 WARNING_MESSAGES = {
     "additive": (

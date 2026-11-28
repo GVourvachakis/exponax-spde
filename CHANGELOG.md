@@ -5,6 +5,23 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed (breaking)
+
+- Removed the deterministic exponax copies and re-exports, including
+  `HeatEquation`. Use `exponax.stepper.Diffusion`. The stochastic stepper
+  subpackage moved to `exponax_spde.stepper`. Removed the `docs` and `vape4d`
+  extras and upstream-only tests and notebooks.
+  [#3](https://github.com/GVourvachakis/exponax-spde/issues/3)
+
+### Changed
+
+- exponax-spde is a stochastic add-on built on `exponax>=0.2.1,<0.3`.
+  Upstream 0.2.1 returns one channel for multidimensional discontinuities and
+  accepts traced sine offsets. Temporary import errors guide migration until
+  0.4.0. See the [migration guide](docs/migration-0.3.md).
+  [#3](https://github.com/GVourvachakis/exponax-spde/issues/3),
+  [exponax PR #101](https://github.com/Ceyron/exponax/pull/101)
+
 ## [0.2.0] - 2026-11-28
 
 ### Changed

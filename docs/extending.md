@@ -1,7 +1,8 @@
 # Extending exponax-spde with New SPDE Steppers
 
 This guide walks through the exact steps needed to add a new stochastic PDE
-stepper to `exponax_spde`, following the same pattern as `StochasticAllenCahn`.
+stepper to `exponax_spde`, following the same pattern as `StochasticAllenCahn`. Use the public `exponax`
+API for the deterministic base classes and helpers.
 `StochasticAllenCahn` supports drift orders 1–4 and defaults to order 1.
 Use the same order for the template's deterministic update and its reference.
 
@@ -21,10 +22,11 @@ which splits as $L(u) = -\Delta u - \partial_x^4 u$ (linear, ETD) and
 $\mathcal{N}(u) = -\tfrac{1}{2}\|\nabla u\|^2$ (nonlinear, explicit).
 
 See the [additive noise model](noise_model.md) for variance units and coupling.
+External extensions can import `phi1` from `exponax_spde.stepper`.
 
 ### Step 1 — create the stepper module
 
-`exponax_spde/stepper/stochastic/_stochastic_ks.py`:
+`exponax_spde/stepper/_stochastic_ks.py`:
 
 <!-- non-executable template -->
 ```python
@@ -34,7 +36,7 @@ from exponax import BaseStepper, fft, ifft, spectral
 from exponax.nonlin_fun import GradientNormNonlinearFun
 from jaxtyping import Array
 
-from ._stochastic_allen_cahn import phi1
+from ._allen_cahn import phi1
 
 
 class StochasticKuramotoSivashinsky(BaseStepper):
@@ -118,25 +120,16 @@ def _build_nonlinear_fun(self, derivative_operator):
     )
 ```
 
-### Step 3 — export from the stochastic subpackage
-
-`exponax_spde/stepper/stochastic/__init__.py`:
-
-<!-- non-executable template -->
-```python
-from ._stochastic_allen_cahn import StochasticAllenCahn
-from ._stochastic_ks import StochasticKuramotoSivashinsky  # add this line
-
-__all__ = ["StochasticAllenCahn", "StochasticKuramotoSivashinsky"]
-```
+### Step 3 — export from the stepper subpackage
 
 `exponax_spde/stepper/__init__.py`:
 
 <!-- non-executable template -->
 ```python
-from .stochastic import StochasticAllenCahn, StochasticKuramotoSivashinsky
+from ._allen_cahn import StochasticAllenCahn, phi1
+from ._stochastic_ks import StochasticKuramotoSivashinsky
 
-__all__ = ["StochasticAllenCahn", "StochasticKuramotoSivashinsky"]
+__all__ = ["StochasticAllenCahn", "StochasticKuramotoSivashinsky", "phi1"]
 ```
 
 `exponax_spde/__init__.py`:
@@ -184,5 +177,5 @@ after the JAX solve.
 - [ ] `step()` raises `NotImplementedError`
 - [ ] `__call__` and `step_fourier` both require `key=`
 - [ ] `TestDeterministicLimit` passes with `sigma=0, use_taming=False`
-- [ ] Exported from all three `__init__.py` files
+- [ ] Exported from the stepper and root `__init__.py` files
 - [ ] Module-level docstring lists known limitations

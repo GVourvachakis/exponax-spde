@@ -2,9 +2,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from exponax import fft
 
-from exponax_spde import fft
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 
 @pytest.mark.parametrize("ratio", [2, 4])

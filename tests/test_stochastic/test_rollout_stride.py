@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 import exponax_spde as spde
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 
 @pytest.mark.parametrize("stride", [2, 5])

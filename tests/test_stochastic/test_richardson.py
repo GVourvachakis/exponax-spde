@@ -10,7 +10,7 @@ import pytest
 from physverify import check_order
 
 from exponax_spde import richardson_weak_extrapolation
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 M = 4096
 BATCH = 128

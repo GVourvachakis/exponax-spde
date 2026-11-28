@@ -10,12 +10,10 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
 
 ## Layout
 
-- `exponax_spde/stepper/stochastic/_stochastic_allen_cahn.py` contains the SPDE stepper.
+- `exponax_spde/stepper/_allen_cahn.py` contains the SPDE stepper.
 - `exponax_spde/_stochastic_utils.py` contains the stochastic utilities.
 - `exponax_spde/nonlin_fun/_tamed_polynomial.py` contains the tamed polynomial nonlinearity.
-- Issue #3 tracks the vendored exponax modules under `exponax_spde/`. Do not extend them.
 - `tests/test_stochastic/` contains the SPDE tests.
-- `tests/test_builtin_solvers.py` contains the vendored-solver tests.
 - `validation/validate_stochastic_allen_cahn.ipynb` is the validation notebook. Strip
   outputs and execution counts before committing.
 - `docs/` contains documentation and images.
@@ -61,8 +59,8 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
   ignored globally and F821 is ignored per file for this reason. Keep the quotes and
   these ignores. Add new modules that use shape strings to the per-file ignores.
 - Library code must avoid private exponax attributes such as `_integrator._exp_term`
-  and `_coef_1`. Prefer exponax's public API. Import from `exponax._spectral` only when
-  there is no public equivalent, and explain the choice in a comment.
+  and `_coef_1`. Import only from exponax's public API. Never copy or re-export
+  exponax code. Propose deterministic changes upstream.
 - Store the linear operator and use `expm1`-based phi functions with gradient-safe
   `jnp.where`. Never recover the operator with `log(exp(L*dt))`.
 
@@ -73,7 +71,7 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
   Keep physverify out of runtime and traced JAX code.
 - Derive verification references from the physics and keep standard-error-based checks
   primary. Verification tests use only the public `exponax_spde` API and installed
-  `exponax`, so they are independent of the vendored modules (#3).
+  `exponax`.
 
 - Match the fingerprint hashes exactly within the same environment. After changing the
   locked environment, compare the arrays case by case and require a normwise relative
