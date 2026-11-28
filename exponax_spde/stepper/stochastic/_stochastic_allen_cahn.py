@@ -67,6 +67,10 @@ class NoiseRegularityWarning(UserWarning):
     """The finite-grid noise is too rough for the classical continuum model."""
 
 
+class TamingOrderWarning(UserWarning):
+    """Taming limits convergence to first order against the untamed model."""
+
+
 def _warn_at_caller(message: str, category: type[Warning]) -> None:
     # Equinox wraps construction in a version-dependent number of frames.
     frame = sys._getframe()
@@ -362,7 +366,7 @@ class StochasticAllenCahn(BaseStepper):
             _warn_at_caller(
                 "Taming changes the drift by O(h), so accuracy stays first order "
                 "relative to the untamed model.",
-                UserWarning,
+                TamingOrderWarning,
             )
 
         # BaseStepper.__init__ immediately calls _build_linear_operator

@@ -23,9 +23,14 @@ To add a new SPDE stepper (e.g. stochastic Kuramoto-Sivashinsky):
 6. Export from ``exponax_spde/stepper/stochastic/__init__.py``
 """
 
-from ._stochastic_allen_cahn import NoiseRegularityWarning, StochasticAllenCahn
+from ._stochastic_allen_cahn import (
+    NoiseRegularityWarning,
+    StochasticAllenCahn,
+    TamingOrderWarning,
+)
 
 __all__ = [
     "NoiseRegularityWarning",
     "StochasticAllenCahn",
+    "TamingOrderWarning",
 ]
