@@ -2,10 +2,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from exponax import spectral
+from exponax import fft, spectral
 
-from exponax_spde import fft, stochastic_structure_factor
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde import stochastic_structure_factor
+from exponax_spde.stepper import StochasticAllenCahn
 
 
 def _modal_geometry(d, n, extent):

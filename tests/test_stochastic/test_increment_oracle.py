@@ -5,7 +5,7 @@ import jax
 import numpy as np
 import pytest
 
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 
 @pytest.mark.parametrize(("d", "alpha"), [(1, 2.0), (2, 1.5)])

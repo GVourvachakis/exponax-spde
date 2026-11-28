@@ -2,10 +2,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from exponax import spectral
+from exponax import fft, ifft, spectral
 
-from exponax_spde import fft, ifft
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 
 @pytest.mark.slow

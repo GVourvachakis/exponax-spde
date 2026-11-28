@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 from physverify import check_order
 
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 
 def test_deterministic_etdrk1_order():

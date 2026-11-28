@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from exponax_spde import strang_split_step
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 
 def _identity(u, *, key):

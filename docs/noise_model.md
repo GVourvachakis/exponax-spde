@@ -217,7 +217,7 @@ category locally for an intentional finite-grid experiment:
 ```python
 import warnings
 from exponax_spde import NoiseRegularityWarning
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 with warnings.catch_warnings():
     warnings.filterwarnings("ignore", category=NoiseRegularityWarning)

@@ -8,15 +8,15 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from exponax import fft, ifft
 
-from exponax_spde import stochastic_structure_factor
-from exponax_spde._spectral import fft, ifft
-from exponax_spde._stochastic_utils import (
+from exponax_spde import (
     stochastic_ensemble_rollout,
     stochastic_rollout,
+    stochastic_structure_factor,
     structure_factor,
 )
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 # ── Double precision is important for convergence and invariant-measure tests
 jax.config.update("jax_enable_x64", True)

@@ -40,12 +40,10 @@ classifiers = [
 ]
 
 dependencies = [
-    "exponax>=0.2.0,<0.3",
+    "exponax>=0.2.1,<0.3",
     "jax>=0.6.2",
     "jaxtyping>=0.2.33",
-    "typing_extensions>=4.5.0",
     "equinox>=0.12.2",
-    "matplotlib>=3.8.1",
 ]
 
 [project.urls]
@@ -69,17 +67,7 @@ dev = [
     "pre-commit>=3.7.0",
     "commitizen>=3.29.0", # CLI commit helper
 ]
-vape4d = ["vape4d"]
 test = ["jaxlib", "pytest>=7.0.0", "pytest-cov>=2.3.1", "physverify>=0.9.1,<0.10"]
-docs = [
-    "mkdocs==1.6.1",
-    "mkdocs-material==9.7.1",
-    "mkdocstrings==1.0.3",
-    "mkdocstrings-python==2.0.1",
-    "mknotebooks==0.8.0",
-    "griffe==1.15.0",
-    "black==26.1.0",              # Needed for API autoformat
-]
 
 [tool.ruff]
 line-length = 88
@@ -107,7 +95,7 @@ ignore = [
 # jaxtyping shape strings also trigger F821 (undefined name) after UP037
 # strips them. Belt-and-braces: suppress F821 only in the files that use
 # jaxtyping annotations so the rest of the codebase keeps full F coverage.
-"exponax_spde/stepper/stochastic/_stochastic_allen_cahn.py" = ["F821"]
+"exponax_spde/stepper/_allen_cahn.py" = ["F821"]
 "exponax_spde/_stochastic_utils.py" = ["F821"]
 
 [tool.ruff.lint.isort]

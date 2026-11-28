@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import exponax_spde as spde
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 
 def test_typed_and_legacy_threefry_keys_match():

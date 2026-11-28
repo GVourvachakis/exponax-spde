@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import exponax_spde as spde
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 pytestmark = pytest.mark.skipif(
     jax.config.jax_enable_x64, reason="Float32 smoke requires JAX_ENABLE_X64 unset."

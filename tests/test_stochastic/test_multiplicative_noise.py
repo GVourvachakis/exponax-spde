@@ -7,7 +7,7 @@ import pytest
 from exponax import fft, ifft
 from physverify import check_order
 
-from exponax_spde.stepper.stochastic import StochasticAllenCahn
+from exponax_spde.stepper import StochasticAllenCahn
 
 
 def _stepper(d=1, n=16, h=0.01, **kwargs):

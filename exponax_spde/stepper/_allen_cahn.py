@@ -56,11 +56,10 @@ from typing import Literal
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from exponax import fft, ifft, spectral
+from exponax import BaseStepper, fft, ifft, spectral
 from jaxtyping import Array, Complex, Float, PRNGKeyArray
 
-from ..._base_stepper import BaseStepper
-from ...nonlin_fun import TamedPolynomialNonlinearFun
+from ..nonlin_fun import TamedPolynomialNonlinearFun
 
 
 class NoiseRegularityWarning(UserWarning):
