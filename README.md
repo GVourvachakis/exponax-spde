@@ -335,6 +335,7 @@ and this repository:
   title  = {exponax-spde: Stochastic PDE solvers built on top of exponax},
   year   = {2026},
   version = {0.2.0},
+  doi = {10.5281/zenodo.24628654},
   url    = {https://github.com/GVourvachakis/exponax-spde},
 }
 ```
