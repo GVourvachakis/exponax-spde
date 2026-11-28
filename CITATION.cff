@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using this metadata."
+title: "exponax-spde"
+type: software
+authors:
+  - given-names: Georgios
+    family-names: Vourvachakis
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+version: "0.2.0rc1"
+license: MIT
+repository-code: "https://github.com/GVourvachakis/exponax-spde"
+keywords:
+  - stochastic partial differential equations
+  - Allen–Cahn equation
+  - Fourier spectral methods
+  - exponential integrators
+  - JAX
+abstract: >-
+  exponax-spde implements Fourier spectral time steppers for stochastic
+  partial differential equations in JAX, including stochastic Allen–Cahn
+  dynamics with additive or multiplicative noise.
+  The package provides coupled noise increments, ensemble statistics and
+  reproducible diagnostics for assessing numerical accuracy.
+references:
+  - type: conference-paper
+    title: "APEBench: A Benchmark for Autoregressive Neural Emulators of PDEs"
+    authors:
+      - given-names: Felix
+        family-names: Koehler
+      - given-names: Simon
+        family-names: Niedermayr
+      - given-names: Rüdiger
+        family-names: Westermann
+      - given-names: Nils
+        family-names: Thuerey
+    year: 2024
+    collection-title: "Advances in Neural Information Processing Systems 37"
+    conference:
+      name: "NeurIPS 2024 Datasets and Benchmarks"
+    start: 120252
+    end: 120310
+    doi: "10.52202/079017-3822"
