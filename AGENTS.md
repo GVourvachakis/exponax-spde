@@ -93,15 +93,19 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
   for the statistic used by the precision gate. Record the pilot and calculation
   in the design note. Never size the sample from a Gaussian assumption. Aim for
   relative standard error below about 3% and justify tolerances from it.
-- For a five-SE detection target with 90% power, set the sample count to
-  ceil(((5 + 1.28) × CV)²), rounding up to a batch. Use the contrast SD
-  from a pilot divided by the magnitude of the independently predicted effect.
+- For five-SE must-pass detection gates, size the sample for 99.9% power
+  using ceil(((5 + 3.09) × CV)²), rounding up to a batch. Use the 90% rule
+  with 1.28 only for rows allowed to be INCONCLUSIVE. The pilot CV is the
+  contrast SD divided by the magnitude of the independently predicted effect.
 - For the notebook spectrum t-verdict, use at least 64 independent groups.
   Size each family so its Bonferroni t critical value times the pilot
   SE is at most 80% of the predeclared resolution for every checked mode.
 - Freeze sizes and keys in the design. Use fresh production keys after a
-  pilot. Resize each inconclusive check at most once. Keep the earlier evidence
-  and disclose the resize. Report any remaining inconclusive result.
+  pilot. If a row used the wrong power rule, resize it and the rows sharing
+  that rule once under the correct rule with fresh keys. Preserve and disclose
+  the prior results. Report any remaining inconclusive result.
+- Record maintainer approval only by quoting a decision line from the prompt.
+  Treat review comments as change requests.
 - Couple Brownian paths for strong-convergence tests by combining fine increments into
   coarse increments with the scheme's propagation weights.
 - With `sigma=0` and taming off, the stepper must match
