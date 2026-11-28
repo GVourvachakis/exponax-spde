@@ -63,6 +63,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Regenerated the stochastic Allen–Cahn validation notebook and README
+  figures using the corrected noise model. The text summary records
+  analytical comparisons, coupled convergence and sampling uncertainty.
+  [#17](https://github.com/GVourvachakis/exponax-spde/issues/17)
+
 - The hybrid Strang scaffold now preserves conjugate low Fourier modes
   in 1–3 dimensions and validates both SSA concentration increments.
   Passing `domain_extent` is deprecated and has no effect.

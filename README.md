@@ -115,8 +115,10 @@ grad_u0 = jax.grad(lambda field: step_once(field).sum())(u0)
        alt="1-D evolution" width="500">
 </p>
 
-*1-D stochastic Allen-Cahn: space-time diagram showing phase separation
-and coarsening under additive Q-Wiener noise (σ=0.1, α=1.5, λ=1).*
+*1-D stochastic Allen–Cahn with additive Q-Wiener noise, ETDRK1 drift and
+taming. ℓ=1, N=256, Δt=0.0005, ν=0.005, λ=1, α=2 and σ=0.0202319.
+Initial-field key 10 and rollout key 11. The plot and GIF save every 10
+steps (0.005 time units) through t=1.5.*
 
 ---
 
@@ -205,8 +207,10 @@ propagation and requires trace-class noise ($\alpha>d/2$).
 
 ## Validation
 
-The Jupyter notebook `validation/validate_stochastic_allen_cahn.ipynb`
-provides end-to-end validation against theoretical predictions:
+The [validation notebook](validation/validate_stochastic_allen_cahn.ipynb)
+compares the solvers with analytical predictions. Its text-only
+[validation summary](docs/validation_summary.md) reports the measured
+verdicts and uncertainty.
 
 <p align="center">
   <img src="docs/imgs/stochastic_allen_cahn_2d_evolution.png"
@@ -217,25 +221,24 @@ provides end-to-end validation against theoretical predictions:
        width="500">
 </p>
 
-*2-D phase-field evolution: domains coarsen toward the ±1 attractors
-of the double-well potential.*
+*2-D phase-field evolution with additive Q-Wiener noise, ETDRK1 drift and
+taming. ℓ=1, N=256 per axis, Δt=0.0005, ν=0.01, λ=5, α=2 and σ=1.21359.
+Initial-field key 20 and rollout key 21. The GIF saves every 15 steps
+(0.0075 time units) through t=0.75. The snapshots show t=0, 0.1875,
+0.375 and 0.75.*
 
-| Section | Validated quantity |
-|---------|-------------------|
-| 1 | Deterministic limit: $\sigma=0$ matches `reaction.AllenCahn` in $L^\infty$ |
-| 2 | 1-D invariant measure: $S(k) \to C_k = Q_k/(2\nu\|k\|^2)$ |
-| 3 | 2-D invariant measure: structure-factor heat maps |
-| 4 | Noise colour sweep $\alpha \in \{0,1,2,3\}$ |
-| 5 | Additive vs multiplicative noise variance growth |
-| 6 | IC sensitivity: `GaussianRandomField`, `WhiteNoise`, flat IC |
-| 7 | 1-D spatio-temporal visualisation and animation |
-| 8 | 2-D snapshots, animation, radial PSD and coarsening ($k_{\rm int} = \sqrt{\lambda/\nu}$) |
-| 9 | 3-D volume rendering (`vape4d` optional) |
-| 10 | Strong convergence: measured slope vs $\Delta t^{0.5}$; path-coupling caveat |
-| 11 | Milstein vs EEM: coupled strong orders and per-step timing |
-| 12 | Richardson weak extrapolation: bias reduction |
-| 13 | Hybrid SSA scaffold (`strang_split_step` with OU sub-step) |
-| 14 | Summary table: all measured vs expected quantities with ✓/✗ |
+| Section | Experiment |
+| --- | --- |
+| 1 | Bit-exact deterministic parity with exponax ETDRK1 |
+| 2–4 | Stationary and finite-time spectra, including a noise colour sweep |
+| 5 | Conditional means and variances of additive and multiplicative kicks |
+| 6–9 | Initial-condition sensitivity, matched-noise figures, radial PSD and 3-D midplanes |
+| 10 | Fixed-grid additive strong order with coupled Brownian paths |
+| 11 | Multiplicative benchmarks, including the supplemental N=32 comparison |
+| Schemes | Deterministic orders 1–4, small-noise crossover, strong orders and taming |
+| 12 | Weak Richardson bias with coupled and independent estimates and a Gaussian null |
+| 13 | Host-side split-step scaffold with an exact OU source |
+| 14 | Verification verdicts and statistical resolution |
 
 Run the notebook with double precision enabled:
 
@@ -286,9 +289,6 @@ See `docs/extending.md` for a step-by-step template.
    renormalisation in the continuum. The finite-grid stepper and planned
    warnings are discussed in [#8](https://github.com/GVourvachakis/exponax-spde/issues/8).
 2. **Hybrid SSA**: the Python SSA callback limits JIT compilation across steps.
-3. **Validation figures**: the current notebook and media use the v0.1.0
-   noise model. Their regeneration is tracked in
-   [#17](https://github.com/GVourvachakis/exponax-spde/issues/17).
 
 ---
 
