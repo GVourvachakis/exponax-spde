@@ -18,8 +18,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `NoiseRegularityWarning` category allows selective suppression (#8).
 
 - Ensemble utilities accept `batch_size`, and `stochastic_rollout`
-  accepts a save `stride`.
+  and `stochastic_ensemble_rollout` accept a save `stride`.
   [#21](https://github.com/GVourvachakis/exponax-spde/issues/21)
+
+- Higher drift order with taming emits the public `TamingOrderWarning`,
+  which callers can filter selectively.
 
 - Experimental `sample_increment`, `step_with_increment` and
   `coarsen_increments` methods support additive and multiplicative increment

@@ -10,7 +10,11 @@ import numpy as np
 import pytest
 from physverify import check_order
 
-from exponax_spde import richardson_weak_extrapolation, stochastic_ensemble_rollout
+from exponax_spde import (
+    TamingOrderWarning,
+    richardson_weak_extrapolation,
+    stochastic_ensemble_rollout,
+)
 from exponax_spde.stepper.stochastic import StochasticAllenCahn
 
 ORDERS = (1, 2, 3, 4)
@@ -424,7 +428,7 @@ def test_drift_order_preserves_increment_and_batch_contract(order):
         )
 
 
-@pytest.mark.filterwarnings(r"ignore:Taming changes the drift by O\(h\):UserWarning")
+@pytest.mark.filterwarnings("ignore::exponax_spde.TamingOrderWarning")
 @pytest.mark.parametrize("order", ORDERS)
 def test_tamed_drift_is_first_order_relative_to_untamed(order):
     """Taming -u³ replaces it with -u³/(1+h|u³|), adding hu⁶+O(h²).
@@ -465,13 +469,25 @@ def test_tamed_drift_is_first_order_relative_to_untamed(order):
 
 def test_higher_order_taming_warning_points_to_caller():
     with pytest.warns(
-        UserWarning, match=r"Taming changes the drift by O\(h\).*first order.*untamed"
+        TamingOrderWarning,
+        match=r"Taming changes the drift by O\(h\).*first order.*untamed",
     ) as records:
         line = sys._getframe().f_lineno + 1
         StochasticAllenCahn(1, 1.0, N, 0.01, order=2, use_taming=True)
     (record,) = records
+    assert record.category is TamingOrderWarning
     assert record.filename == __file__
     assert record.lineno == line
+
+
+def test_higher_order_taming_warning_selective_filter():
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always", UserWarning)
+        warnings.simplefilter("ignore", TamingOrderWarning)
+        stochastic(2, 0.01, use_taming=True)
+        warnings.warn("unrelated warning", UserWarning, stacklevel=1)
+    (record,) = records
+    assert record.category is UserWarning
 
 
 @pytest.mark.parametrize(("order", "taming"), [(1, True), (4, False)])

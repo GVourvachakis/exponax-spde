@@ -7,11 +7,11 @@ stochastic_rollout(stepper, num_steps, *, include_init)
     Like ``exponax.rollout`` but threads a PRNGKey through a
     stochastic stepper via ``jax.lax.scan``.  Fully JIT-compatible.
 
-stochastic_ensemble_rollout(stepper, num_steps, num_samples, *, include_init)
+stochastic_ensemble_rollout(stepper, num_steps, num_samples, *, include_init, stride)
     ``jax.vmap``-wrapped version of ``stochastic_rollout`` that
     produces M independent trajectories from a single call.
-    Returns shape ``(M, T, 1, *N)`` when ``include_init=False``,
-    or ``(M, T+1, 1, *N)`` when ``include_init=True``.
+    Returns M trajectories with ``num_steps // stride`` saved states each,
+    plus the initial state when ``include_init=True``.
 
 structure_factor(ensemble, *, burn_in_fraction)
     Compute ``S(k) = ⟨|û_k|²⟩`` from an ensemble of physical-space
@@ -99,7 +99,7 @@ def stochastic_rollout(
     """
 
     if stride < 1:
-        raise ValueError("stride must be positive.")
+        raise ValueError(f"stride={stride} must be positive for num_steps={num_steps}.")
     if num_steps % stride or (stride > 1 and stride > num_steps):
         raise ValueError(
             f"num_steps={num_steps} must be a positive multiple of stride={stride}."
@@ -163,6 +163,7 @@ def stochastic_ensemble_rollout(
     *,
     include_init: bool = True,
     batch_size: int | None = None,
+    stride: int = 1,
 ) -> Callable[
     [Float[Array, "1 * N"], PRNGKeyArray],
     Float[Array, "M T 1 *N"],
@@ -173,8 +174,9 @@ def stochastic_ensemble_rollout(
 
         ensemble = ensemble_fn(u_init, key)
 
-    where ``ensemble`` has shape ``(M, T+1, 1, *N)``
-    (or ``(M, T, 1, *N)`` when ``include_init=False``).
+    where ``ensemble`` has shape ``(M, S, 1, *N)`` and ``S`` is
+    ``num_steps // stride + int(include_init)``. The saved states use
+    the same keys as the corresponding states with ``stride=1``.
 
     **Arguments:**
 
@@ -183,7 +185,9 @@ def stochastic_ensemble_rollout(
     - `num_samples`: Number of Monte-Carlo trajectories M.
     - `include_init`: Whether to prepend the initial condition.
     - `batch_size`: Number of paths to advance together. ``None`` maps over
-        the full sample axis. The output still contains every trajectory.
+        the full sample axis.
+    - `stride`: Positive number of time steps between saved states.
+        The number of steps must be a multiple of the stride.
 
     **Example:**
 
@@ -194,7 +198,9 @@ def stochastic_ensemble_rollout(
     ```
     """
     _validate_batch_size(batch_size)
-    single_rollout = stochastic_rollout(stepper, num_steps, include_init=include_init)
+    single_rollout = stochastic_rollout(
+        stepper, num_steps, include_init=include_init, stride=stride
+    )
 
     def _ensemble(
         u_init: Float[Array, "1 * N"],
