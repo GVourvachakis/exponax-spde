@@ -116,9 +116,9 @@ grad_u0 = jax.grad(lambda field: step_once(field).sum())(u0)
 </p>
 
 *1-D stochastic Allen–Cahn with additive Q-Wiener noise, ETDRK1 drift and
-taming. ℓ=1, N=256, Δt=0.0005, ν=0.005, λ=1, α=2 and σ=0.0202319.
-Initial-field key 10 and rollout key 11. The plot and GIF save every 10
-steps (0.005 time units) through t=1.5.*
+taming. ℓ=1, N=256, Δt=0.0005, ν=0.003, λ=0.8, α=0.8 and σ=0.18.
+The rough, sign-changing initial field uses key 10 and the rollout uses
+key 11. The plot and GIF save every 20 steps (0.010 time units) through t=2.*
 
 ---
 
@@ -222,8 +222,8 @@ verdicts and uncertainty.
 </p>
 
 *2-D phase-field evolution with additive Q-Wiener noise, ETDRK1 drift and
-taming. ℓ=1, N=256 per axis, Δt=0.0005, ν=0.01, λ=5, α=2 and σ=1.21359.
-Initial-field key 20 and rollout key 21. The GIF saves every 15 steps
+taming. ℓ=1, N=256 per axis, Δt=0.0005, ν=0.0015, λ=3, α=1.25 and σ=0.30.
+The sign-changing initial field uses key 20 and the rollout uses key 21. The GIF saves every 15 steps
 (0.0075 time units) through t=0.75. The snapshots show t=0, 0.1875,
 0.375 and 0.75.*
 
