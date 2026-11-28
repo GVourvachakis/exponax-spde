@@ -49,8 +49,6 @@ https://doi.org/10.1007/s10208-015-9247-y.
 
 from __future__ import annotations
 
-import sys
-import warnings
 from typing import Literal
 
 import equinox as eqx
@@ -59,28 +57,8 @@ import jax.numpy as jnp
 from exponax import BaseStepper, fft, ifft, spectral
 from jaxtyping import Array, Complex, Float, PRNGKeyArray
 
+from .._warnings import NoiseRegularityWarning, TamingOrderWarning, _warn_at_caller
 from ..nonlin_fun import TamedPolynomialNonlinearFun
-
-
-class NoiseRegularityWarning(UserWarning):
-    """The finite-grid noise is too rough for the classical continuum model."""
-
-
-class TamingOrderWarning(UserWarning):
-    """Taming limits convergence to first order against the untamed model."""
-
-
-def _warn_at_caller(message: str, category: type[Warning]) -> None:
-    # Equinox wraps construction in a version-dependent number of frames.
-    frame = sys._getframe()
-    stacklevel = 1
-    while frame is not None:
-        package = frame.f_globals.get("__name__", "").partition(".")[0]
-        if package not in {"equinox", "exponax_spde"}:
-            break
-        stacklevel += 1
-        frame = frame.f_back
-    warnings.warn(message, category, stacklevel=stacklevel)
 
 
 def phi1(z: Array) -> Array:

@@ -96,7 +96,9 @@ ignore = [
 # strips them. Belt-and-braces: suppress F821 only in the files that use
 # jaxtyping annotations so the rest of the codebase keeps full F coverage.
 "exponax_spde/stepper/_allen_cahn.py" = ["F821"]
-"exponax_spde/_stochastic_utils.py" = ["F821"]
+"exponax_spde/_rollout.py" = ["F821"]
+"exponax_spde/_diagnostics.py" = ["F821"]
+"exponax_spde/_splitting.py" = ["F821"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["exponax_spde"]
