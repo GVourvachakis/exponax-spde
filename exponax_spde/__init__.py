@@ -3,17 +3,16 @@
 from importlib.metadata import version as _distribution_version
 
 from . import nonlin_fun, stepper
-from ._stochastic_utils import (
+from ._diagnostics import (
     richardson_weak_extrapolation,
-    stochastic_ensemble_rollout,
-    stochastic_rollout,
     stochastic_structure_factor,
-    strang_split_step,
     structure_factor,
 )
+from ._rollout import stochastic_ensemble_rollout, stochastic_rollout
+from ._splitting import strang_split_step
+from ._warnings import NoiseRegularityWarning, TamingOrderWarning
 from .nonlin_fun import TamedPolynomialNonlinearFun
 from .stepper import StochasticAllenCahn
-from .stepper._allen_cahn import NoiseRegularityWarning, TamingOrderWarning
 
 __version__ = _distribution_version("exponax-spde")
 

@@ -11,7 +11,8 @@ and a Strang-split hybrid scaffold. Deterministic behaviour must agree with `exp
 ## Layout
 
 - `exponax_spde/stepper/_allen_cahn.py` contains the SPDE stepper.
-- `exponax_spde/_stochastic_utils.py` contains the stochastic utilities.
+- `exponax_spde/_rollout.py`, `_diagnostics.py` and `_splitting.py` contain the
+  stochastic utilities. `exponax_spde/_warnings.py` defines the warning classes.
 - `exponax_spde/nonlin_fun/_tamed_polynomial.py` contains the tamed polynomial nonlinearity.
 - `tests/test_stochastic/` contains the SPDE tests.
 - `validation/validate_stochastic_allen_cahn.ipynb` is the validation notebook. Strip
