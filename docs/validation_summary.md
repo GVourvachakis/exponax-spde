@@ -1,6 +1,6 @@
 # Stochastic Allen–Cahn validation
 
-Notebook commit `c4e1abda8975e87c1552cf0ad2c58d3ce7121064` · 2026-11-28 · Python 3.12.3, jax 0.12.1, jaxlib 0.12.1, numpy 2.5.5, exponax 0.2.1, exponax-spde 0.1.0 · CPU float64.
+Notebook commit `1b9b48eeae6ef409f74a306e4e58716a9ec7c493` · library tree `6e7d6071089788dc51514a206d931b92f44c2cad` · 2026-11-28 · Python 3.12.3, jax 0.12.1, jaxlib 0.12.1, numpy 2.5.5, exponax 0.2.1, exponax-spde 0.1.0 · CPU float64.
 
 PASS meets the gate · INCONCLUSIVE leaves a signal or resolution unresolved · DIAGNOSTIC is descriptive · FAIL misses the gate.
 
@@ -50,8 +50,8 @@ PASS meets the gate · INCONCLUSIVE leaves a signal or resolution unresolved · 
 | §12 coupled weak signal, coarse 16 | PASS | coarse–fine 490.89 SE, fine–reference 7.19 SE |
 | §12 independent weak signal, coarse 16 | PASS | coarse–fine 5.21 SE, fine–reference 7.73 SE |
 | §12 exact Gaussian null | PASS | coupled gap 0, max discrepancy 1.21 SE |
-| §12 exact four-level Gaussian marginals | PASS | largest pathwise gap 5.22e-15, marginal discrepancy 0.73 SE |
-| §12 coupled four-level residual c=8 | INCONCLUSIVE | mean -0.000194976538, SE 3.91e-05, predicted -0.00024968, agreement 1.40 SE, detection 4.98 SE, M=256 |
-| §12 coupled four-level residual c=16 | PASS | mean -6.1840018e-05, SE 9.09e-06, predicted -6.0416e-05, agreement 0.16 SE, detection 6.80 SE, M=1088 |
+| §12 exact four-level Gaussian marginals | PASS | largest relative Fourier gap 6.42e-15, marginal discrepancy 0.73 SE |
+| §12 coupled four-level residual c=8 | PASS | mean -0.000245444639, SE 1.94e-05, predicted -0.00024968, agreement 0.22 SE, detection 12.64 SE, M=1024 |
+| §12 coupled four-level residual c=16 | PASS | mean -6.46527335e-05, SE 4.65e-06, predicted -6.0416e-05, agreement 0.91 SE, detection 13.90 SE, M=4160 |
 | §13 split composition | PASS | max error 1.67e-16 |
 | §13 exact OU half-step | PASS | mean=0.29924859 (target 0.29925047), var=5.6321e-06 (target 5.618e-06), max 0.16 SE |

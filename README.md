@@ -115,10 +115,11 @@ grad_u0 = jax.grad(lambda field: step_once(field).sum())(u0)
        alt="1-D evolution" width="500">
 </p>
 
-*1-D stochastic Allen–Cahn with additive Q-Wiener noise, ETDRK1 drift and
-taming. ℓ=1, N=256, Δt=0.0005, ν=0.003, λ=0.8, α=0.8 and σ=0.18.
-The rough, sign-changing initial field uses key 10 and the rollout uses
-key 11. The plot and GIF save every 20 steps (0.010 time units) through t=2.*
+*1-D candidate A, illustration, not validation evidence. The unit interval
+uses N=256, Δt=0.001, ν=0.0005, λ=1.0, σ=0.05 and α=0 with ETDRK1 and
+taming off. The initial field is 0.10 + 0.9·GRF (power 0.5, zero mean,
+key 10). Rollout key 11. Save every 25 steps (0.025 time units) to t=7.5
+and display 301 frames at 50 ms per frame.*
 
 ---
 
@@ -221,11 +222,12 @@ verdicts and uncertainty.
        width="500">
 </p>
 
-*2-D phase-field evolution with additive Q-Wiener noise, ETDRK1 drift and
-taming. ℓ=1, N=256 per axis, Δt=0.0005, ν=0.0015, λ=3, α=1.25 and σ=0.30.
-The sign-changing initial field uses key 20 and the rollout uses key 21. The GIF saves every 15 steps
-(0.0075 time units) through t=0.75. The snapshots show t=0, 0.1875,
-0.375 and 0.75.*
+*2-D candidate V, illustration, not validation evidence. The unit square
+uses N=256 per axis, Δt=0.001, ν=0.0008, λ=10, σ=0.12 and α=0.5 with
+ETDRK1 and taming on. The initial field is 0.15 + 0.8·GRF (power 2.5,
+zero mean, key 20). Rollout key 21. Save every 100 steps (0.1 time units)
+to t=10 and display 101 frames at 80 ms per frame. The PNG shows t=0,
+0.5, 2.5 and 10.*
 
 | Section | Experiment |
 | --- | --- |
