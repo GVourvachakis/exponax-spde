@@ -111,4 +111,5 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   [#7](https://github.com/GVourvachakis/exponax-spde/issues/7),
   [PR #23](https://github.com/GVourvachakis/exponax-spde/pull/23).
 
+[Unreleased]: https://github.com/GVourvachakis/exponax-spde/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/GVourvachakis/exponax-spde/releases/tag/v0.2.0
