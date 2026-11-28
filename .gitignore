@@ -160,3 +160,5 @@ scratch/
 
 # Local editor interpreter selection
 .vscode/settings.json
+
+/validation/_output/
