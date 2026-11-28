@@ -270,7 +270,7 @@ $h=0.0287$. This is a finite-grid example with smooth noise.
 Taming replaces the cubic term $\mathcal{N}$ by
 $\mathcal{N}/(1+h|\mathcal{N}|)$ at each stage. This changes the drift
 at $O(h)$, which limits accuracy to first order relative to the untamed
-equation. Construction warns when a higher drift order and taming are
+equation. Construction emits `TamingOrderWarning` when a higher drift order and taming are
 enabled with concrete parameters.
 
 The increment API and its coarsening formulas are independent of `order`.

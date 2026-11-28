@@ -30,10 +30,11 @@ before importing JAX to allocate on demand, or limit the pool with
   `richardson_weak_extrapolation`. `None` uses the full vmap batch. Compare
   peak memory and throughput on your workload. Batching bounds in-flight
   work. It leaves the size of the returned trajectories unchanged.
-  Combine chunked mapping with strided single-path rollouts to retain
-  fewer states, or use streamed statistics when only a spectrum is
-  needed. The streamed spectrum carries current fields for all paths.
-- `stochastic_rollout(stepper, num_steps, stride=k)` saves steps
+  Combine `batch_size` with `stride` in `stochastic_ensemble_rollout`
+  to retain fewer states, or use streamed statistics when only a
+  spectrum is needed. The streamed spectrum carries current fields for all paths.
+- Both `stochastic_rollout` and `stochastic_ensemble_rollout` accept
+  `stride=k` to save steps
   `k, 2*k, …`. Choose a multiple of `k` for `num_steps`. The output contains
   `num_steps // stride` saved states, plus step zero if `include_init=True`.
   These states use the same keys as the corresponding stride-one states. Upstream exponax's `rollout` has no
